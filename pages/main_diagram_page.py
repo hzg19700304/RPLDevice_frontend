@@ -58,7 +58,7 @@ class MainDiagramPage:
         
         with ui.card().classes('w-full h-full'):
             # 使用滚动区域解决图片裁剪问题
-            scroll_height = 'height: calc(100vh - 100px);'
+            scroll_height = 'height: calc(100vh - 120px);'  # 计算合适的滚动区域高度，确保底部边框可见
             with ui.scroll_area().classes('w-full').style(scroll_height):
                 with ui.column().classes('w-full items-center p-4'):
                     # 创建图片容器

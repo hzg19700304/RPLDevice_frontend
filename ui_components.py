@@ -278,77 +278,228 @@ class UIComponents:
         
         dialog.open()
 
+class VirtualKeyboardManager:
+    """虚拟键盘管理器 - 防止重复弹出"""
+    _instance = None
+    _current_keyboard = None
+    _last_input = None
+    _last_show_time = 0
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(VirtualKeyboardManager, cls).__new__(cls)
+        return cls._instance
+    
+    def can_show_keyboard(self, input_field) -> bool:
+        """检查是否可以显示虚拟键盘"""
+        import time
+        current_time = time.time()
+        
+        # 如果已有键盘显示中，不允许新的键盘
+        if self._current_keyboard is not None:
+            return False
+        
+        # 如果同一个输入框在1秒内重复触发，忽略
+        if self._last_input == input_field and (current_time - self._last_show_time) < 1.0:
+            return False
+        
+        return True
+    
+    def register_keyboard(self, keyboard, input_field):
+        """注册虚拟键盘实例"""
+        self._current_keyboard = keyboard
+        self._last_input = input_field
+        import time
+        self._last_show_time = time.time()
+    
+    def unregister_keyboard(self):
+        """注销虚拟键盘实例"""
+        self._current_keyboard = None
+
+
 class VirtualKeyboard:
     """虚拟数字键盘组件"""
     
-    def __init__(self, target_input, allow_negative: bool = True):
+    def __init__(self, target_input, allow_negative: bool = False, allow_decimal: bool = True):
         self.target_input = target_input
         self.allow_negative = allow_negative
-        self.current_value = ""
+        self.allow_decimal = allow_decimal
+        self.current_value = str(target_input.value or '0')
+        self.dialog = None  # 保存对话框引用
+        self.manager = VirtualKeyboardManager()  # 获取管理器实例
         
     def show(self) -> None:
         """显示虚拟键盘"""
-        with ui.dialog() as dialog, ui.card().classes('q-pa-md'):
-            ui.label('数字键盘').classes('text-h6')
-            ui.separator()
-            
-            # 显示当前输入值
-            self.display = ui.input(value=self.current_value, readonly=True).classes('text-center text-h5')
-            
-            # 数字键盘布局
-            with ui.grid(columns=3).classes('q-mt-md'):
-                for i in range(1, 10):
-                    ui.button(str(i), on_click=lambda x=i: self._input_digit(str(x))).classes('touch-friendly')
+        try:
+            with ui.dialog() as self.dialog, ui.card().classes('q-pa-md').style('min-width: 350px;'):
+                ui.label('数值输入').classes('text-h6 q-mb-md')
                 
-                # 第四行
-                if self.allow_negative:
-                    ui.button('+/-', on_click=self._toggle_sign).classes('touch-friendly')
-                else:
-                    ui.button('').props('disable')  # 占位
+                # 显示输入框
+                display = ui.input(value=self.current_value).props('readonly').classes('text-center text-h5 q-mb-md').style(
+                    'font-size: 24px; font-weight: bold;'
+                )
                 
-                ui.button('0', on_click=lambda: self._input_digit('0')).classes('touch-friendly')
-                ui.button('.', on_click=lambda: self._input_digit('.')).classes('touch-friendly')
+                # 数字键盘布局 - 重新设计为4列以容纳更多按钮
+                with ui.grid(columns=4).classes('q-gutter-sm q-mb-md'):
+                    # 第一行
+                    ui.button('7', on_click=lambda: self._input_digit('7', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('8', on_click=lambda: self._input_digit('8', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('9', on_click=lambda: self._input_digit('9', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('←', on_click=lambda: self._backspace(display)).classes('text-h6').style('min-width: 60px; min-height: 50px; background-color: #ff9800; color: white;')
+                    
+                    # 第二行
+                    ui.button('4', on_click=lambda: self._input_digit('4', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('5', on_click=lambda: self._input_digit('5', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('6', on_click=lambda: self._input_digit('6', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('清除', on_click=lambda: self._clear(display)).classes('text-h6').style('min-width: 60px; min-height: 50px; background-color: #9e9e9e; color: white;')
+                    
+                    # 第三行
+                    ui.button('1', on_click=lambda: self._input_digit('1', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('2', on_click=lambda: self._input_digit('2', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('3', on_click=lambda: self._input_digit('3', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    if self.allow_negative:
+                        ui.button('±', on_click=lambda: self._toggle_negative(display)).classes('text-h6').style('min-width: 60px; min-height: 50px; background-color: #4caf50; color: white;')
+                    else:
+                        ui.button('', on_click=lambda: None).props('disable').style('min-width: 60px; min-height: 50px;')
+                    
+                    # 第四行
+                    if self.allow_decimal:
+                        ui.button('.', on_click=lambda: self._input_digit('.', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    else:
+                        ui.button('', on_click=lambda: None).props('disable').style('min-width: 60px; min-height: 50px;')
+                    ui.button('0', on_click=lambda: self._input_digit('0', display)).classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('取消', on_click=lambda: self._cancel(), color='grey').classes('text-h6').style('min-width: 60px; min-height: 50px;')
+                    ui.button('确定', on_click=lambda: self._confirm(), color='primary').classes('text-h6').style('min-width: 60px; min-height: 50px;')
             
-            # 控制按钮
-            with ui.row().classes('q-mt-md'):
-                ui.button('清除', on_click=self._clear).classes('touch-friendly')
-                ui.button('退格', on_click=self._backspace).classes('touch-friendly')
-                ui.button('取消', on_click=dialog.close).classes('touch-friendly')
-                ui.button('确定', on_click=lambda: self._confirm(dialog)).classes('touch-friendly')
-        
-        dialog.open()
+            self.dialog.open()
+        except Exception as e:
+            logger.error(f"虚拟键盘显示失败: {e}")
+            ui.notify(f'虚拟键盘显示失败: {str(e)}', type='negative')
     
-    def _input_digit(self, digit: str) -> None:
+    def _input_digit(self, digit: str, display) -> None:
         """输入数字"""
+        if digit == '.' and not self.allow_decimal:
+            return
         if digit == '.' and '.' in self.current_value:
             return  # 避免重复小数点
         
-        self.current_value += digit
-        self.display.value = self.current_value
-    
-    def _toggle_sign(self) -> None:
-        """切换正负号"""
-        if self.current_value.startswith('-'):
-            self.current_value = self.current_value[1:]
+        if self.current_value == '0' and digit != '.':
+            self.current_value = digit
         else:
-            self.current_value = '-' + self.current_value
-        self.display.value = self.current_value
+            self.current_value += digit
+        display.value = self.current_value
     
-    def _clear(self) -> None:
+    def _clear(self, display) -> None:
         """清除输入"""
-        self.current_value = ""
-        self.display.value = self.current_value
+        self.current_value = '0'
+        display.value = self.current_value
     
-    def _backspace(self) -> None:
+    def _backspace(self, display) -> None:
         """退格"""
-        self.current_value = self.current_value[:-1]
-        self.display.value = self.current_value
+        if len(self.current_value) > 1:
+            self.current_value = self.current_value[:-1]
+        else:
+            self.current_value = '0'
+        display.value = self.current_value
     
-    def _confirm(self, dialog) -> None:
+    def _toggle_negative(self, display) -> None:
+        """切换正负号 - 先清空输入框，然后立即显示+或-符号"""
+        # 如果当前是空值或只有符号，显示负号
+        if (not self.current_value or 
+            self.current_value == '-' or 
+            self.current_value == '+'):
+            self.current_value = '-'
+            display.value = '-'
+            return
+        
+        # 如果当前是0，显示负号
+        if self.current_value == '0':
+            self.current_value = '-'
+            display.value = '-'
+            return
+        
+        # 移除现有符号，获取纯数字部分
+        clean_value = self.current_value.lstrip('-+')
+        
+        # 如果原来是负号，现在改为正号（不显示+）
+        if self.current_value.startswith('-'):
+            self.current_value = clean_value
+        else:
+            # 原来是正号或无符号，现在改为负号
+            self.current_value = '-' + clean_value
+        
+        display.value = self.current_value
+    
+    def _confirm(self) -> None:
         """确认输入"""
-        if self.target_input:
+        try:
+            logger.info(f"确认按钮点击 - 输入值: {self.current_value}")
+            
+            # 验证输入值
+            value = float(self.current_value)
+            logger.info(f"数值验证成功: {value}")
+            
+            # 设置输入框的关闭标记，防止虚拟键盘重新弹出
+            self.target_input._vk_closing = True
+            
+            # 临时禁用输入框，防止焦点恢复触发事件
+            self.target_input.props('readonly')
+            
+            # 更新目标输入框的值
             self.target_input.value = self.current_value
-        dialog.close()
+            logger.info(f"输入框值已更新: {self.current_value}")
+            
+            # 关闭对话框
+            if self.dialog:
+                self.dialog.close()
+                logger.info("对话框已关闭")
+            
+            # 延迟重置关闭标记并恢复输入框状态
+            def reset_state():
+                setattr(self.target_input, '_vk_closing', False)
+                self.target_input.props(remove='readonly')
+                
+            ui.timer(1.5, reset_state)
+            
+        except ValueError:
+            logger.warning(f"数值验证失败: {self.current_value}")
+            ui.notify('请输入有效的数字', type='warning')
+            # 恢复输入框状态
+            self.target_input.props(remove='readonly')
+        except Exception as e:
+            logger.error(f"确认操作失败: {e}")
+            ui.notify(f'确认失败: {str(e)}', type='negative')
+            # 恢复输入框状态
+            self.target_input.props(remove='readonly')
+    
+    def _cancel(self):
+        """取消输入"""
+        try:
+            logger.info("取消按钮被点击")
+            
+            # 设置输入框的关闭标记，防止虚拟键盘重新弹出
+            self.target_input._vk_closing = True
+            
+            # 临时禁用输入框，防止焦点恢复触发事件
+            self.target_input.props('readonly')
+            
+            # 关闭对话框
+            if self.dialog:
+                self.dialog.close()
+                logger.info("对话框已关闭")
+            
+            # 延迟重置关闭标记并恢复输入框状态
+            def reset_state():
+                setattr(self.target_input, '_vk_closing', False)
+                self.target_input.props(remove='readonly')
+                
+            ui.timer(1.5, reset_state)
+            
+        except Exception as e:
+            logger.error(f"取消操作失败: {e}")
+            ui.notify(f'取消失败: {str(e)}', type='negative')
+            # 恢复输入框状态
+            self.target_input.props(remove='readonly')
 
 class ConfirmDialog:
     """确认对话框组件"""
