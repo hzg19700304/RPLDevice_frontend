@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配色方案展示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2C3E50;
+            margin-bottom: 40px;
+            font-size: 32px;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        
+        .color-card {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .color-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+        
+        .color-swatch {
+            height: 150px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .color-info {
+            padding: 20px;
+            background: white;
+        }
+        
+        .color-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2C3E50;
+            margin-bottom: 8px;
+        }
+        
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            color: #7f8c8d;
+            margin-bottom: 12px;
+        }
+        
+        .color-usage {
+            font-size: 14px;
+            color: #34495e;
+            line-height: 1.6;
+        }
+        
+        .demo-section {
+            margin-top: 40px;
+            padding: 30px;
+            background: #ECF0F1;
+            border-radius: 12px;
+        }
+        
+        .demo-title {
+            font-size: 24px;
+            color: #2C3E50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #3498DB;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+        
+        .demo-alerts {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 15px;
+        }
+        
+        .alert-icon {
+            font-size: 24px;
+        }
+        
+        .alert-success {
+            background: #27AE60;
+            color: white;
+        }
+        
+        .alert-warning {
+            background: #F39C12;
+            color: white;
+        }
+        
+        .alert-error {
+            background: #E74C3C;
+            color: white;
+        }
+        
+        .alert-info {
+            background: #3498DB;
+            color: white;
+        }
+        
+        .ui-mockup {
+            margin-top: 30px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .mockup-header {
+            background: #2C3E50;
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .mockup-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .status-indicators {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
+        
+        .status-online {
+            background: #27AE60;
+        }
+        
+        .status-offline {
+            background: #E74C3C;
+        }
+        
+        .status-warning {
+            background: #F39C12;
+        }
+        
+        .mockup-content {
+            background: white;
+            padding: 30px;
+        }
+        
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            background: #ECF0F1;
+        }
+        
+        .data-label {
+            font-weight: 500;
+            color: #2C3E50;
+        }
+        
+        .data-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #3498DB;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 钢轨电位限制柜配色方案</h1>
+        
+        <div class="color-grid">
+            <div class="color-card">
+                <div class="color-swatch" style="background: #2C3E50;">
+                    主色调
+                </div>
+                <div class="color-info">
+                    <div class="color-name">主色调</div>
+                    <div class="color-value">#2C3E50</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 顶部栏背景<br>
+                        • 导航栏背景<br>
+                        • 标题文字<br>
+                        • 主要边框
+                    </div>
+                </div>
+            </div>
+            
+            <div class="color-card">
+                <div class="color-swatch" style="background: #3498DB;">
+                    强调色
+                </div>
+                <div class="color-info">
+                    <div class="color-name">强调色</div>
+                    <div class="color-value">#3498DB</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 主要按钮<br>
+                        • 链接文字<br>
+                        • 信息提示<br>
+                        • 高亮内容
+                    </div>
+                </div>
+            </div>
+            
+            <div class="color-card">
+                <div class="color-swatch" style="background: #27AE60;">
+                    成功色
+                </div>
+                <div class="color-info">
+                    <div class="color-name">成功色</div>
+                    <div class="color-value">#27AE60</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 成功提示框<br>
+                        • 正常状态指示器<br>
+                        • 在线状态<br>
+                        • 确认按钮
+                    </div>
+                </div>
+            </div>
+            
+            <div class="color-card">
+                <div class="color-swatch" style="background: #F39C12;">
+                    警告色
+                </div>
+                <div class="color-info">
+                    <div class="color-name">警告色</div>
+                    <div class="color-value">#F39C12</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 警告提示框<br>
+                        • 连接中状态<br>
+                        • 注意事项<br>
+                        • 重要数值
+                    </div>
+                </div>
+            </div>
+            
+            <div class="color-card">
+                <div class="color-swatch" style="background: #E74C3C;">
+                    错误色
+                </div>
+                <div class="color-info">
+                    <div class="color-name">错误色</div>
+                    <div class="color-value">#E74C3C</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 错误提示框<br>
+                        • 故障状态指示器<br>
+                        • 离线状态<br>
+                        • 危险按钮
+                    </div>
+                </div>
+            </div>
+            
+            <div class="color-card">
+                <div class="color-swatch" style="background: #ECF0F1; color: #2C3E50;">
+                    背景色
+                </div>
+                <div class="color-info">
+                    <div class="color-name">背景色</div>
+                    <div class="color-value">#ECF0F1</div>
+                    <div class="color-usage">
+                        <strong>应用场景:</strong><br>
+                        • 页面主背景<br>
+                        • 卡片背景<br>
+                        • 输入框背景<br>
+                        • 分割区域
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2 class="demo-title">📱 交互组件演示</h2>
+            
+            <div class="demo-buttons">
+                <button class="btn btn-primary">主要操作按钮</button>
+                <button class="btn" style="background: #27AE60; color: white;">确认操作</button>
+                <button class="btn" style="background: #F39C12; color: white;">警告操作</button>
+                <button class="btn" style="background: #E74C3C; color: white;">危险操作</button>
+            </div>
+            
+            <div class="demo-alerts">
+                <div class="alert alert-success">
+                    <span class="alert-icon">✓</span>
+                    <span>参数设置成功! 新配置已生效</span>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <span class="alert-icon">⚠</span>
+                    <span>警告: 串口连接不稳定, 正在尝试重连...</span>
+                </div>
+                
+                <div class="alert alert-error">
+                    <span class="alert-icon">✗</span>
+                    <span>错误: 数据查询失败 - 数据库连接超时</span>
+                </div>
+                
+                <div class="alert alert-info">
+                    <span class="alert-icon">ℹ</span>
+                    <span>信息: 正在连接服务器, 请稍候...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="ui-mockup">
+            <div class="mockup-header">
+                <div class="mockup-title">红岩坪站钢轨电位限制装置</div>
+                <div class="status-indicators">
+                    <div class="status-dot status-online" title="控制板在线"></div>
+                    <div class="status-dot status-online" title="PSCADA在线"></div>
+                    <div class="status-dot status-warning" title="服务器连接中"></div>
+                </div>
+            </div>
+            <div class="mockup-content">
+                <div class="data-row">
+                    <span class="data-label">支路1电流</span>
+                    <span class="data-value">12.5 A</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">支路电压1</span>
+                    <span class="data-value">24.3 V</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">最大极化电位</span>
+                    <span class="data-value">-120 V</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">系统状态</span>
+                    <span class="data-value" style="color: #27AE60;">正常运行</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
