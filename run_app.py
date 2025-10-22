@@ -15,6 +15,15 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+# 设置httpx日志级别为WARNING，减少HTTP请求调试信息
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('httpx.http2').setLevel(logging.WARNING)
+logging.getLogger('httpx.connection').setLevel(logging.WARNING)
+
+# 设置NiceGUI日志级别为ERROR，减少客户端警告信息
+logging.getLogger('nicegui').setLevel(logging.ERROR)
+
 @ui.page('/')
 async def index():
     """主页面"""

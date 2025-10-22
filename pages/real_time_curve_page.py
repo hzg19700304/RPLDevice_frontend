@@ -27,9 +27,9 @@ class RealTimeCurvePage:
         # 参数配置 - 根据配置文件中的SA1/SA2/SV1/SV2模拟量
         self.available_parameters = [
             {"name": "轨地电流SA1", "unit": "A", "color": "#FF6B6B"},
-            {"name": "可控硅电流SA2", "unit": "A", "color": "#4ECDC4"},
-            {"name": "轨地电压SV1", "unit": "V", "color": "#45B7D1"},
-            {"name": "轨地电压SV2", "unit": "V", "color": "#96CEB4"}
+            {"name": "可控硅电流SA2", "unit": "A", "color": "#9B59B6"},
+            {"name": "轨地电压SV1", "unit": "V", "color": "#3498DB"},
+            {"name": "轨地电压SV2", "unit": "V", "color": "#E67E22"}
         ]
         
         # 选中的参数 - 默认选择SA1和SV1
@@ -56,7 +56,7 @@ class RealTimeCurvePage:
         """设置数据回调"""
         if self.websocket_client:
             self.websocket_client.register_data_callback('analog_data', self._handle_analog_data)
-            logger.info("已注册模拟量数据回调")
+            # logger.info("已注册模拟量数据回调")
         else:
             logger.warning("WebSocket客户端未初始化")
     
@@ -74,7 +74,8 @@ class RealTimeCurvePage:
             
             # 第一次接收数据时打印结构
             if self.data_count == 0:
-                logger.info(f"首次接收数据，样例: {data[0] if data else 'empty'}")
+                # logger.info(f"首次接收数据，样例: {data[0] if data else 'empty'}")
+                pass
             
             # 处理每个参数
             for param_data in data:
@@ -91,7 +92,7 @@ class RealTimeCurvePage:
                 # 初始化所有参数的数据队列（即使未选中，也要保持数据同步）
                 if param_name not in self.curve_data:
                     self.curve_data[param_name] = deque(maxlen=120)
-                    logger.info(f"初始化参数队列: {param_name}")
+                    # logger.info(f"初始化参数队列: {param_name}")
                 
                 # 添加数据点
                 self.curve_data[param_name].append(float(value))
@@ -103,8 +104,8 @@ class RealTimeCurvePage:
             # 每10个数据点打印一次调试信息
             if self.data_count % 10 == 0:
                 sample_values = {k: list(v)[-1] if v else None for k, v in self.curve_data.items()}
-                logger.info(f"数据更新 #{self.data_count} - 选中: {self.selected_parameters}, "
-                          f"最新值: {sample_values}")
+                # logger.info(f"数据更新 #{self.data_count} - 选中: {self.selected_parameters}, "
+                          # f"最新值: {sample_values}")
             
             # 等待图表初始化完成再更新
             if self.chart_initialized:
@@ -134,16 +135,18 @@ class RealTimeCurvePage:
                     
                     for param in self.available_parameters:
                         is_selected = param['name'] in self.selected_parameters
-                        checkbox = ui.checkbox(
-                            param['name'], 
-                            value=is_selected
-                        )
-                        self.param_checkboxes[param['name']] = checkbox
+                        with ui.row().classes('items-center gap-2 p-2 rounded-lg').style(f'background-color: {param["color"]}20;'):
+                            checkbox = ui.checkbox(
+                                param['name'], 
+                                value=is_selected
+                            )
+                            self.param_checkboxes[param['name']] = checkbox
                         
                         def make_handler(param_name, checkbox_ref):
-                            def on_param_toggle(e):
-                                checked = e.args
-                                logger.info(f"参数切换: {param_name}, 勾选状态: {checked}")
+                            def on_param_toggle():
+                                # 获取复选框的当前值
+                                checked = checkbox_ref.value
+                                # logger.info(f"参数切换: {param_name}, 勾选状态: {checked}")
                                 
                                 if checked:
                                     if param_name not in self.selected_parameters:
@@ -154,7 +157,7 @@ class RealTimeCurvePage:
                                         self.selected_parameters.remove(param_name)
                                         logger.info(f"移除参数: {param_name}")
                                 
-                                logger.info(f"当前选中参数: {self.selected_parameters}")
+                                # logger.info(f"当前选中参数: {self.selected_parameters}")
                                 
                                 # 重新创建图表
                                 self._recreate_chart()
@@ -162,11 +165,11 @@ class RealTimeCurvePage:
                         
                         checkbox.on('update:model-value', make_handler(param['name'], checkbox))
                 
-                # 状态信息显示
-                with ui.row().classes('w-full items-center mb-4 gap-4'):
-                    self.status_label = ui.label('状态: 等待数据...').classes('text-sm text-grey-7')
-                    self.data_count_label = ui.label('数据点: 0').classes('text-sm text-grey-7')
-                    self.last_time_label = ui.label('最后数据: --').classes('text-sm text-grey-7')
+                # # 状态信息显示
+                # with ui.row().classes('w-full items-center mb-4 gap-4'):
+                #     self.status_label = ui.label('状态: 等待数据...').classes('text-sm text-grey-7')
+                #     self.data_count_label = ui.label('数据点: 0').classes('text-sm text-grey-7')
+                #     self.last_time_label = ui.label('最后数据: --').classes('text-sm text-grey-7')
             
             # 图表容器
             self.chart_container = ui.card().classes('w-full p-4').style('height: 520px;')
@@ -176,7 +179,7 @@ class RealTimeCurvePage:
             
             # 启动数据更新
             self.is_running = True
-            self.update_timer = ui.timer(1.0, self._update_status_display)
+            # self.update_timer = ui.timer(1.0, self._update_status_display)  # 状态显示已注释掉 - 不需要
     
     def _create_chart(self):
         """创建图表"""
@@ -317,7 +320,7 @@ class RealTimeCurvePage:
     
     def _recreate_chart(self):
         """重新创建图表"""
-        logger.info(f"重新创建图表，选中参数: {self.selected_parameters}")
+        # logger.info(f"重新创建图表，选中参数: {self.selected_parameters}")
         
         # 暂停图表更新
         self.chart_initialized = False
@@ -398,6 +401,10 @@ class RealTimeCurvePage:
     async def _update_status_display(self):
         """更新状态显示"""
         try:
+            # 检查组件是否仍然存在
+            if not self.status_label or not hasattr(self.status_label, 'set_text'):
+                return
+                
             if self.last_data_time:
                 time_diff = (datetime.now() - self.last_data_time).total_seconds()
                 if time_diff < 5:

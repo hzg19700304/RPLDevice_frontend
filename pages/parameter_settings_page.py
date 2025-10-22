@@ -4,6 +4,7 @@ Parameter Settings Page
 """
 # flake8: noqa
 import logging
+import asyncio
 from nicegui import ui
 from typing import Dict, List
 
@@ -18,6 +19,7 @@ class ParameterSettingsPage:
         self.websocket_client = websocket_client
         self.param_inputs = {}  # 存储所有参数输入框的引用
         self.param_mapping = {}  # 存储参数地址到名称的映射
+        self.main_container = None  # 保存主容器引用，用于UI上下文
 
         # 注册WebSocket回调
         if self.websocket_client:
@@ -33,21 +35,77 @@ class ParameterSettingsPage:
     async def _handle_param_read_response(self, data):
         """处理参数读取响应"""
         try:
+            logger.info(f"收到参数读取响应: {data}")
+            
+            # 处理不同的数据格式
+            params_data = None
+            
             if 'params' in data:
-                await self.update_param_values(data['params'])
-            elif 'data' in data and 'params' in data['data']:
-                await self.update_param_values(data['data']['params'])
+                params_data = data['params']
+            elif 'data' in data:
+                if 'params' in data['data']:
+                    params_data = data['data']['params']
+                else:
+                    params_data = data['data']
+            
+            logger.info(f"提取到的参数数据类型: {type(params_data)}")
+            if isinstance(params_data, list):
+                logger.info(f"参数列表长度: {len(params_data)}")
+                if len(params_data) > 0:
+                    logger.info(f"第一个参数示例: {params_data[0]}")
+            
+            if params_data is not None:
+                # 如果params_data是列表格式，需要转换为字典格式
+                if isinstance(params_data, list):
+                    # 将列表格式转换为地址到值的映射
+                    param_dict = {}
+                    for param in params_data:
+                        if isinstance(param, dict) and 'reg_addr' in param and 'current_value' in param:
+                            param_dict[param['reg_addr']] = param['current_value']
+                        else:
+                            logger.warning(f"参数格式不正确: {param}")
+                    logger.info(f"转换后的参数字典长度: {len(param_dict)}")
+                    logger.info(f"转换后的参数字典示例: {dict(list(param_dict.items())[:5])}")
+                    # 使用调度方法确保在正确的UI上下文中更新
+                    self.schedule_param_update(param_dict)
+                elif isinstance(params_data, dict):
+                    # 已经是字典格式，直接使用
+                    logger.info(f"直接使用字典格式，长度: {len(params_data)}")
+                    # 使用调度方法确保在正确的UI上下文中更新
+                    self.schedule_param_update(params_data)
+                else:
+                    logger.warning(f"未知的参数数据格式: {type(params_data)}")
+            else:
+                logger.warning("未找到参数数据")
+                
         except Exception as e:
             logger.error(f"处理参数读取响应失败: {e}")
+            logger.exception("详细错误信息:")
 
     async def _handle_param_write_response(self, data):
         """处理参数写入响应"""
         try:
             if data.get('exec_status') == 'success':
-                ui.notify('参数写入成功', type='positive')
+                # 使用run_javascript来安全地显示通知
+                await ui.run_javascript('''
+                    Quasar.Notify.create({
+                        message: '参数写入成功',
+                        type: 'positive',
+                        position: 'top',
+                        timeout: 3000
+                    })
+                ''')
             else:
                 error_msg = data.get('exec_msg', '未知错误')
-                ui.notify(f'参数写入失败: {error_msg}', type='negative')
+                # 使用run_javascript来安全地显示错误通知
+                await ui.run_javascript(f'''
+                    Quasar.Notify.create({{
+                        message: '参数写入失败: {error_msg}',
+                        type: 'negative',
+                        position: 'top',
+                        timeout: 5000
+                    }})
+                ''')
         except Exception as e:
             logger.error(f"处理参数写入响应失败: {e}")
         
@@ -56,7 +114,8 @@ class ParameterSettingsPage:
         # 从配置文件加载参数映射
         self._load_param_mapping()
         
-        with ui.card().classes('w-full').style('height: calc(100vh - 120px); overflow-y: auto;'):
+        with ui.card().classes('w-full').style('height: calc(100vh - 120px); overflow-y: auto;') as main_card:
+            self.main_container = main_card  # 保存主容器引用
             ui.label('控制参数设置').classes('text-h5 q-mb-md')
             
             # 顶部操作按钮
@@ -245,11 +304,27 @@ class ParameterSettingsPage:
                 'count': len(self.param_mapping)
             })
             
-            ui.notify('正在读取参数...', type='info')
+            # 使用run_javascript来安全地显示通知
+            await ui.run_javascript('''
+                Quasar.Notify.create({
+                    message: '正在读取参数...',
+                    type: 'info',
+                    position: 'top',
+                    timeout: 2000
+                })
+            ''')
             
         except Exception as e:
             logger.error(f"读取参数失败: {e}")
-            ui.notify(f'读取参数失败: {str(e)}', type='negative')
+            # 使用run_javascript来安全地显示错误通知
+            await ui.run_javascript(f'''
+                Quasar.Notify.create({{
+                    message: '读取参数失败: {str(e)}',
+                    type: 'negative',
+                    position: 'top',
+                    timeout: 5000
+                }})
+            ''')
     
     async def _on_write_params(self):
         """写入参数按钮点击事件"""
@@ -270,11 +345,28 @@ class ParameterSettingsPage:
                     invalid_params.append(f"{self.param_mapping.get(addr, addr)}: 非法数值")
             
             if invalid_params:
-                ui.notify(f'以下参数无效:\n' + '\n'.join(invalid_params), type='warning')
+                # 使用run_javascript来安全地显示警告通知
+                await ui.run_javascript(f'''
+                    Quasar.Notify.create({{
+                        message: '以下参数无效: {"; ".join(invalid_params)}',
+                        type: 'warning',
+                        position: 'top',
+                        timeout: 5000,
+                        multiLine: true
+                    }})
+                ''')
                 return
             
             if not self.websocket_client or not self.websocket_client.is_connected:
-                ui.notify('WebSocket未连接', type='warning')
+                # 使用run_javascript来安全地显示警告通知
+                await ui.run_javascript('''
+                    Quasar.Notify.create({
+                        message: 'WebSocket未连接',
+                        type: 'warning',
+                        position: 'top',
+                        timeout: 3000
+                    })
+                ''')
                 return
             
             logger.info(f"发送写入参数请求: {len(param_values)} 个参数")
@@ -285,11 +377,27 @@ class ParameterSettingsPage:
                 'params': param_values
             })
             
-            ui.notify('正在写入参数...', type='info')
+            # 使用run_javascript来安全地显示通知
+            await ui.run_javascript('''
+                Quasar.Notify.create({
+                    message: '正在写入参数...',
+                    type: 'info',
+                    position: 'top',
+                    timeout: 2000
+                })
+            ''')
             
         except Exception as e:
             logger.error(f"写入参数失败: {e}")
-            ui.notify(f'写入参数失败: {str(e)}', type='negative')
+            # 使用run_javascript来安全地显示错误通知
+            await ui.run_javascript(f'''
+                Quasar.Notify.create({{
+                    message: '写入参数失败: {str(e)}',
+                    type: 'negative',
+                    position: 'top',
+                    timeout: 5000
+                }})
+            ''')
     
     def _show_virtual_keyboard(self, input_field):
         """显示虚拟数字键盘"""
@@ -319,9 +427,10 @@ class ParameterSettingsPage:
             logger.info("虚拟键盘显示成功")
         except Exception as e:
             logger.error(f"虚拟键盘加载失败: {e}")
+            # 由于这不是异步函数，使用普通方式显示通知
             ui.notify(f'虚拟键盘加载失败: {str(e)}', type='negative')
     
-    async def update_param_values(self, param_data: dict):
+    def update_param_values(self, param_data: dict):
         """更新参数值显示
         
         Args:
@@ -329,17 +438,109 @@ class ParameterSettingsPage:
         """
         try:
             updated_count = 0
+            
+            logger.info(f"开始更新参数值，收到 {len(param_data)} 个参数数据")
+            logger.info(f"参数数据示例: {dict(list(param_data.items())[:5])}")
+            logger.info(f"当前UI中的参数输入框数量: {len(self.param_inputs)}")
+            
+            # 直接在主线程中执行UI更新，避免异步上下文问题
             for addr, value in param_data.items():
                 # 处理地址格式
                 addr_key = addr if addr.startswith('0x') else f'0x{addr}'
                 
+                # 检查地址是否在UI中
                 if addr_key in self.param_inputs:
-                    self.param_inputs[addr_key].value = str(value)
+                    input_field = self.param_inputs[addr_key]
+                    input_field.value = str(value)
                     updated_count += 1
+                    logger.debug(f"更新参数: {addr_key} = {value}")
+                else:
+                    logger.warning(f"地址 {addr_key} 在UI中未找到对应的输入框")
             
-            logger.info(f"更新了 {updated_count} 个参数值")
-            ui.notify(f'参数读取成功 ({updated_count} 个)', type='positive')
+            logger.info(f"成功更新 {updated_count} 个参数值，{len(param_data) - updated_count} 个未找到对应UI")
             
         except Exception as e:
             logger.error(f"更新参数值失败: {e}")
+
+    def schedule_param_update(self, param_data: dict):
+        """调度参数更新，确保在正确的UI上下文中执行
+        
+        Args:
+            param_data: 从服务器读取的参数数据
+        """
+        try:
+            if self.main_container is not None:
+                # 使用主容器上下文来确保UI更新在正确的位置执行
+                with self.main_container:
+                    ui.timer(0.1, lambda: self._safe_update_params(param_data), once=True)
+            else:
+                # 如果没有主容器，直接使用timer
+                ui.timer(0.1, lambda: self._safe_update_params(param_data), once=True)
+        except Exception as e:
+            logger.error(f"调度参数更新失败: {e}")
+    
+    def _safe_update_params(self, param_data: dict):
+        """安全地更新参数值（在正确的UI上下文中）"""
+        try:
+            updated_count = 0
+            missing_addrs = []
+            
+            logger.info(f"开始安全更新参数，收到 {len(param_data)} 个参数")
+            logger.info(f"UI中可用的参数地址数量: {len(self.param_inputs)}")
+            logger.info(f"UI中前5个地址: {list(self.param_inputs.keys())[:5]}")
+            
+            # 添加地址格式调试信息
+            if param_data:
+                sample_addr = list(param_data.keys())[0]
+                logger.info(f"收到的第一个地址格式: {sample_addr}")
+                logger.info(f"UI中对应的地址格式: {sample_addr if sample_addr in self.param_inputs else '未找到'}")
+            
+            # 确保在主容器上下文中执行
+            if self.main_container is not None:
+                with self.main_container:
+                    for addr, value in param_data.items():
+                        # 处理地址格式 - 统一转换为小写进行比较
+                        addr_key = addr.lower() if addr.startswith('0x') else f'0x{addr}'.lower()
+                        
+                        # 检查地址是否在UI中（也转换为小写进行比较）
+                        ui_addrs_lower = {k.lower(): k for k in self.param_inputs.keys()}
+                        if addr_key in ui_addrs_lower:
+                            original_addr = ui_addrs_lower[addr_key]
+                            input_field = self.param_inputs[original_addr]
+                            input_field.value = str(value)
+                            updated_count += 1
+                            logger.debug(f"更新参数成功: {original_addr} = {value}")
+                        else:
+                            missing_addrs.append(addr_key)
+                            logger.warning(f"地址 {addr_key} 在UI中未找到对应的输入框")
+                    
+                    # 显示通知 - 现在应该在正确的UI上下文中
+                    ui.notify(f'参数读取成功 ({updated_count}/{len(param_data)} 个)', type='positive')
+            else:
+                # 如果没有主容器，直接更新
+                for addr, value in param_data.items():
+                    # 处理地址格式 - 统一转换为小写进行比较
+                    addr_key = addr.lower() if addr.startswith('0x') else f'0x{addr}'.lower()
+                    
+                    # 检查地址是否在UI中（也转换为小写进行比较）
+                    ui_addrs_lower = {k.lower(): k for k in self.param_inputs.keys()}
+                    if addr_key in ui_addrs_lower:
+                        original_addr = ui_addrs_lower[addr_key]
+                        input_field = self.param_inputs[original_addr]
+                        input_field.value = str(value)
+                        updated_count += 1
+                        logger.debug(f"更新参数成功: {original_addr} = {value}")
+                    else:
+                        missing_addrs.append(addr_key)
+                        logger.warning(f"地址 {addr_key} 在UI中未找到对应的输入框")
+                
+                # 显示通知
+                ui.notify(f'参数读取成功 ({updated_count}/{len(param_data)} 个)', type='positive')
+            
+            logger.info(f"安全更新完成: {updated_count} 个参数值, 缺失 {len(missing_addrs)} 个地址")
+            if missing_addrs:
+                logger.info(f"缺失的地址示例: {missing_addrs[:10]}")
+            
+        except Exception as e:
+            logger.error(f"安全更新参数值失败: {e}")
             ui.notify(f'更新参数值失败: {str(e)}', type='negative')

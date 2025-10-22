@@ -38,7 +38,7 @@ class UIComponents:
                 self.header_time_label = ui.label().classes('text-body1')
                 self._update_time()
                 # 创建定时器，每秒更新一次时间
-                ui.timer(1.0, self._update_time)
+                self.time_timer = ui.timer(1.0, self._update_time)
                 
                 ui.space()
                 
@@ -178,7 +178,7 @@ class UIComponents:
                     'font-weight: 500;'
                 )
         
-        logger.info(f"底部状态栏创建完成 - 图标: {len(self.footer_status_icons)}, 标签: {len(self.footer_status_labels)}")
+        # logger.info(f"底部状态栏创建完成 - 图标: {len(self.footer_status_icons)}, 标签: {len(self.footer_status_labels)}")
     
     def update_connection_status(self, connected: bool, connection_type: str = 'websocket') -> None:
         """更新连接状态
@@ -254,9 +254,13 @@ class UIComponents:
     
     def _update_time(self) -> None:
         """更新时间显示"""
-        if self.header_time_label:
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self.header_time_label.text = current_time
+        if self.header_time_label and hasattr(self.header_time_label, 'text'):
+            try:
+                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                self.header_time_label.text = current_time
+            except Exception:
+                # 如果标签已被销毁，忽略更新
+                pass
     
     def _show_system_settings(self) -> None:
         """显示系统设置对话框"""

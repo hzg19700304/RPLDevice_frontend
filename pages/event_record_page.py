@@ -107,7 +107,7 @@ class EventRecordPage:
             start_datetime = f"{query_date}T00:00:00"
             end_datetime = f"{query_date}T23:59:59"
             
-            logger.info(f"开始查询，日期范围: {start_datetime} 到 {end_datetime}")
+            # logger.info(f"开始查询，日期范围: {start_datetime} 到 {end_datetime}")
             
             # 验证时间格式
             try:
