@@ -118,40 +118,67 @@ class UIComponents:
             ui.notify(f'点击了菜单: {page_key}', type='info')
     
     def create_footer(self) -> None:
-        """创建底部状态栏"""
-        with ui.footer().classes('bg-grey-2 text-grey-8 q-pa-sm').style('height: auto; min-height: 48px;'):  # 改为 auto
-            with ui.row().classes('w-full items-center text-caption').style('min-height: 36px; overflow-x: auto; flex-wrap: nowrap;'):  # 添加 flex-wrap: nowrap 和 overflow-x: auto
+        """创建底部状态栏 - 最终版本"""
+        with ui.footer().style(
+            'background-color: #ECF0F1; '
+            'color: #2C3E50; '
+            'height: 60px; '
+            'padding: 10px 20px; '
+            'display: flex; '
+            'align-items: center; '
+            'justify-content: space-between;'
+        ):
+            # 左侧状态信息区域
+            with ui.row().style(
+                'display: flex; '
+                'align-items: center; '
+                'gap: 20px; '
+                'flex: 1;'
+            ):
                 # 控制板连接状态
-                with ui.row().classes('items-center flex-no-wrap').style('white-space: nowrap; flex-shrink: 0;'):  # 添加 flex-shrink: 0
-                    ui.icon('memory', color='grey').classes('q-mr-xs')
-                    self.footer_status_labels['control_board'] = ui.label('控制板串口: 未连接').style('font-size: 12px;')
+                with ui.row().style('display: flex; align-items: center; gap: 6px;'):
+                    self.footer_status_icons['control_board'] = ui.icon('memory', color='grey').style('font-size: 20px;')
+                    self.footer_status_labels['control_board'] = ui.label('控制板: 未连接').style(
+                        'font-size: 14px; '
+                        'white-space: nowrap; '
+                        'color: #2C3E50;'
+                    )
                 
-                ui.separator().props('vertical').classes('q-mx-sm')
+                # 分隔符
+                ui.label('|').style('color: #95a5a6; font-size: 18px;')
                 
                 # PSCADA连接状态
-                with ui.row().classes('items-center flex-no-wrap').style('white-space: nowrap; flex-shrink: 0;'):
-                    ui.icon('router', color='grey').classes('q-mr-xs')
-                    self.footer_status_labels['pscada'] = ui.label('PSCADA串口: 未连接').style('font-size: 12px;')
+                with ui.row().style('display: flex; align-items: center; gap: 6px;'):
+                    self.footer_status_icons['pscada'] = ui.icon('router', color='grey').style('font-size: 20px;')
+                    self.footer_status_labels['pscada'] = ui.label('PSCADA: 未连接').style(
+                        'font-size: 14px; '
+                        'white-space: nowrap; '
+                        'color: #2C3E50;'
+                    )
                 
-                ui.separator().props('vertical').classes('q-mx-sm')
+                # 分隔符
+                ui.label('|').style('color: #95a5a6; font-size: 18px;')
                 
-                # 服务器连接状态
-                with ui.row().classes('items-center flex-no-wrap').style('white-space: nowrap; flex-shrink: 0;'):
-                    ui.icon('settings_ethernet', color='grey').classes('q-mr-xs')
-                    self.footer_status_labels['server'] = ui.label('服务器: 未连接').style('font-size: 12px;')
-
-                ui.separator().props('vertical').classes('q-mx-sm')
-
                 # WebSocket连接状态
-                with ui.row().classes('items-center flex-no-wrap').style('white-space: nowrap; flex-shrink: 0;'):
-                    self.footer_status_icons['websocket'] = ui.icon('link_off', color='grey').classes('q-mr-xs')
-                    self.footer_status_labels['websocket'] = ui.label('WebSocket: 未连接').style('color: red; font-size: 12px;')
+                with ui.row().style('display: flex; align-items: center; gap: 6px;'):
+                    self.footer_status_icons['websocket'] = ui.icon('link_off', color='grey').style('font-size: 20px;')
+                    self.footer_status_labels['websocket'] = ui.label('WebSocket: 未连接').style(
+                        'font-size: 14px; '
+                        'white-space: nowrap; '
+                        'color: #e74c3c;'
+                    )
             
-                ui.space()
-                
-                # 系统版本
+            # 右侧版本信息
+            with ui.row().style('display: flex; align-items: center;'):
                 version = self.device_info.get('系统版本', '1.0.0')
-                ui.label(f'版本: {version}').style('font-size: 12px; white-space: nowrap; flex-shrink: 0;')
+                ui.label(f'版本: {version}').style(
+                    'font-size: 14px; '
+                    'white-space: nowrap; '
+                    'color: #7f8c8d; '
+                    'font-weight: 500;'
+                )
+        
+        logger.info(f"底部状态栏创建完成 - 图标: {len(self.footer_status_icons)}, 标签: {len(self.footer_status_labels)}")
     
     def update_connection_status(self, connected: bool, connection_type: str = 'websocket') -> None:
         """更新连接状态
@@ -196,8 +223,8 @@ class UIComponents:
     def _get_connection_name(self, connection_type: str) -> str:
         """获取连接类型的显示名称"""
         name_map = {
-            'control_board': '控制板串口',
-            'pscada': 'PSCADA串口',
+            'control_board': '控制板',
+            'pscada': 'PSCADA',
             'server': '服务器',
             'websocket': 'WebSocket'
         }

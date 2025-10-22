@@ -84,7 +84,7 @@ class MainDiagramPage:
             with open(svg_path, 'r', encoding='utf-8') as f:
                 svg_html = f.read()
             wrapped_svg = f'<div class="svg-container">{svg_html}</div>'
-            self.diagram_image = ui.html(wrapped_svg).classes('w-full')
+            self.diagram_image = ui.html(wrapped_svg, sanitize=False).classes('w-full')
             
             # 添加基本样式
             ui.add_head_html('''

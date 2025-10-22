@@ -10,6 +10,7 @@ from .main_diagram_page import MainDiagramPage
 from .system_status_page import SystemStatusPage
 from .event_record_page import EventRecordPage
 from .parameter_settings_page import ParameterSettingsPage
+from .real_time_curve_page import RealTimeCurvePage
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class PageManager:
         self.system_status_page = SystemStatusPage(config_manager, websocket_client)
         self.event_record_page = EventRecordPage(config_manager, websocket_client)
         self.parameter_settings_page = ParameterSettingsPage(config_manager, websocket_client)
+        self.real_time_curve_page = RealTimeCurvePage(config_manager, websocket_client)
 
     def setup_pages(self) -> None:
         """设置页面"""
@@ -86,7 +88,7 @@ class PageManager:
             elif page_key == 'show_parameter_settings':
                 self.parameter_settings_page.create_page()
             elif page_key == 'show_real_time_curve':
-                self._create_placeholder_page("实时曲线")
+                self.real_time_curve_page.create_page()
             elif page_key == 'show_history_curve':
                 self._create_placeholder_page("历史曲线")
             elif page_key == 'show_api_status':
@@ -103,3 +105,9 @@ class PageManager:
         self.current_page = page_key
         page_name = enabled_pages.get(page_key, page_key)
         ui.notify(f'已切换到: {page_name}', type='positive')
+    
+    def cleanup(self):
+        """清理页面资源"""
+        if hasattr(self, 'real_time_curve_page'):
+            self.real_time_curve_page.cleanup()
+        logger.info("页面管理器已清理")

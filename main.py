@@ -236,11 +236,11 @@ class RPLDeviceHMI:
             hmi_serial_available = data.get('hmi_serial_available', False)
             scada_serial_available = data.get('scada_serial_available', False)
             
-            # logger.info(f"收到连接状态消息 - WebSocket: {websocket_connected}, HMI串口: {hmi_serial_available}, SCADA串口: {scada_serial_available}")
-            # logger.info(f"完整数据: {data}")
+            logger.info(f"收到连接状态消息 - WebSocket: {websocket_connected}, HMI串口: {hmi_serial_available}, SCADA串口: {scada_serial_available}")
+            logger.info(f"完整数据: {data}")
             
             if self.ui_components:
-                # 更新控制板串口状态（HMI串口）
+                # 控制板串口状态直接使用HMI串口状态（它们是同一个串口）
                 self.ui_components.update_connection_status(hmi_serial_available, 'control_board')
                 # 更新PSCADA串口状态（SCADA串口）
                 self.ui_components.update_connection_status(scada_serial_available, 'pscada')
