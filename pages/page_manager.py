@@ -11,6 +11,7 @@ from .system_status_page import SystemStatusPage
 from .event_record_page import EventRecordPage
 from .parameter_settings_page import ParameterSettingsPage
 from .real_time_curve_page import RealTimeCurvePage
+from .history_curve_page import HistoryCurvePage
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class PageManager:
         self.event_record_page = EventRecordPage(config_manager, websocket_client)
         self.parameter_settings_page = ParameterSettingsPage(config_manager, websocket_client)
         self.real_time_curve_page = RealTimeCurvePage(config_manager, websocket_client)
+        self.history_curve_page = HistoryCurvePage(config_manager, websocket_client)
 
     def setup_pages(self) -> None:
         """设置页面"""
@@ -90,7 +92,7 @@ class PageManager:
             elif page_key == 'show_real_time_curve':
                 self.real_time_curve_page.create_page()
             elif page_key == 'show_history_curve':
-                self._create_placeholder_page("历史曲线")
+                self.history_curve_page.create_page()
             elif page_key == 'show_api_status':
                 self._create_placeholder_page("API状态")
             elif page_key == 'show_fault_record':
@@ -110,4 +112,6 @@ class PageManager:
         """清理页面资源"""
         if hasattr(self, 'real_time_curve_page'):
             self.real_time_curve_page.cleanup()
+        if hasattr(self, 'history_curve_page'):
+            self.history_curve_page.cleanup()
         logger.info("页面管理器已清理")
