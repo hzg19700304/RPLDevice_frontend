@@ -61,23 +61,23 @@ class HistoryCurvePage:
         
     def create_page(self) -> ui.column:
         """创建历史曲线页面"""
-        with ui.column().classes('w-full p-4 gap-3').style('height: calc(100vh - 150px); overflow-y: auto;'):
+        with ui.column().classes('w-full p-2 gap-2').style('height: calc(100vh - 150px); overflow-y: auto;'):
             # 标题栏 - 简洁风格
-            with ui.card().classes('w-full p-3').style('background: white; border-left: 4px solid #1976D2; flex-shrink: 0;').props('flat'):
+            with ui.card().classes('w-full p-2').style('background: white; border-left: 4px solid #1976D2; flex-shrink: 0;').props('flat'):
                 ui.label('历史曲线').classes('text-h6 font-bold text-grey-8')
             
             # 参数选择 + 查询条件 + 操作按钮（紧凑布局）
-            with ui.card().classes('w-full p-4').props('flat bordered').style('flex-shrink: 0;'):
+            with ui.card().classes('w-full p-2').props('flat bordered').style('flex-shrink: 0;'):
                 # 参数选择（横向排列）
-                with ui.row().classes('w-full items-center gap-2 mb-3'):
-                    ui.label('显示参数:').classes('text-subtitle2 font-medium text-grey-8').style('min-width: 80px;')
+                with ui.row().classes('w-full items-center gap-2 mb-2'):
+                    ui.label('显示参数:').classes('text-subtitle2 font-medium text-grey-8').style('min-width: 70px;')
                     with ui.row().classes('flex-1 flex-wrap gap-2'):
                         for param in self.available_parameters:
                             is_selected = param['name'] in self.selected_parameters
                             param_color = param.get('color', '#1976D2')  # 获取参数对应的颜色
                             
                             # 创建带颜色的复选框
-                            with ui.row().classes('items-center').style(f'background-color: {param_color}20; border-radius: 6px; padding: 4px 8px; border: 1px solid {param_color}40;'):
+                            with ui.row().classes('items-center').style(f'background-color: {param_color}20; border-radius: 4px; padding: 2px 6px; border: 1px solid {param_color}40;'):
                                 checkbox = ui.checkbox(
                                     param['name'], 
                                     value=is_selected
@@ -98,46 +98,45 @@ class HistoryCurvePage:
                                 
                                 checkbox.on('update:model-value', make_handler(param['name'], checkbox))
                 
-                ui.separator().classes('my-2')
+                # ui.separator().classes('my-1')
                 
-                # 查询条件（横向排列）
-                with ui.row().classes('w-full items-center gap-4 mt-2'):
+                # 查询条件（横向排列，强制不换行）
+                with ui.row().classes('w-full items-center gap-2 mt-1').style('flex-wrap: nowrap;'):
                     # 查询日期
-                    with ui.row().classes('items-center gap-2').style('flex: 1;'):
-                        ui.label('查询日期').classes('text-sm text-grey-7').style('min-width: 60px;')
-                        self.query_date_input = ui.input('').props('type=date outlined dense').classes('flex-1').set_value(self.default_start_date)
+                    with ui.row().classes('items-center gap-1').style('flex: 0 0 auto; min-width: 200px;'):
+                        ui.label('查询日期').classes('text-sm text-grey-7').style('min-width: 60px; flex-shrink: 0;')
+                        self.query_date_input = ui.input('').props('type=date outlined dense').style('width: 160px;').set_value(self.default_start_date)
                     
                     # 开始时间
-                    with ui.row().classes('items-center gap-2').style('flex: 1;'):
-                        ui.label('开始时间').classes('text-sm text-grey-7').style('min-width: 60px;')
-                        self.start_time_input = ui.input('').props('type=time outlined dense').classes('flex-1').set_value(self.default_start_time)
+                    with ui.row().classes('items-center gap-1').style('flex: 0 0 auto; min-width: 180px;'):
+                        ui.label('开始时间').classes('text-sm text-grey-7').style('min-width: 60px; flex-shrink: 0;')
+                        self.start_time_input = ui.input('').props('type=time outlined dense').style('width: 120px;').set_value(self.default_start_time)
                     
                     # 结束时间
-                    with ui.row().classes('items-center gap-2').style('flex: 1;'):
-                        ui.label('结束时间').classes('text-sm text-grey-7').style('min-width: 60px;')
-                        self.end_time_input = ui.input('').props('type=time outlined dense').classes('flex-1').set_value(self.default_end_time)
+                    with ui.row().classes('items-center gap-1').style('flex: 0 0 auto; min-width: 180px;'):
+                        ui.label('结束时间').classes('text-sm text-grey-7').style('min-width: 60px; flex-shrink: 0;')
+                        self.end_time_input = ui.input('').props('type=time outlined dense').style('width: 120px;').set_value(self.default_end_time)
                     
                     # 操作按钮
-                    with ui.row().classes('gap-2'):
-                        ui.button('查询', on_click=self._query_data, icon='search').props('unelevated').classes('bg-blue-6')
-                        ui.button('重置', on_click=self._reset_selection, icon='refresh').props('flat').classes('text-grey-7')
-                        ui.button('导出CSV', on_click=self._export_csv, icon='download').props('flat').classes('text-green-7')
+                    with ui.row().classes('gap-2').style('flex: 0 0 auto; margin-left: auto;'):
+                        ui.button('查询', on_click=self._query_data, icon='search').props('unelevated dense').classes('bg-blue-6')
+                        ui.button('重置', on_click=self._reset_selection, icon='refresh').props('flat dense').classes('text-grey-7')
+                        ui.button('导出CSV', on_click=self._export_csv, icon='download').props('flat dense').classes('text-green-7')
             
             # 状态信息（紧凑显示）
-            with ui.row().classes('w-full items-center justify-between px-3 py-2').style('background: #f5f5f5; border-radius: 4px; flex-shrink: 0;'):
+            with ui.row().classes('w-full items-center justify-between px-2 py-1').style('background: #f5f5f5; border-radius: 4px; flex-shrink: 0;'):
                 with ui.row().classes('items-center gap-4'):
                     self.status_label = ui.label('状态: 等待查询...').classes('text-sm text-grey-7')
                     self.data_count_label = ui.label('数据点: 0').classes('text-sm text-grey-7')
                 ui.label('').classes('text-sm text-grey-6')  # 占位，保持布局
             
             # 图表容器（占据剩余空间）
-            self.chart_container = ui.card().classes('w-full p-4').props('flat bordered').style('background: white; height: 500px; flex-shrink: 0;')
+            self.chart_container = ui.card().classes('w-full p-3').props('flat bordered').style('background: white; height: 550px; flex-shrink: 0;')
             self._create_empty_chart()
             
             # 数据表格（可折叠）
             with ui.expansion('数据详情', icon='table_chart').classes('w-full').props('dense'):
                 self.data_table_container = ui.column().classes('w-full p-2')
-                self._create_data_table()
     
     def _create_empty_chart(self):
         """创建空图表"""

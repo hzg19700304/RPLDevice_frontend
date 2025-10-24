@@ -185,6 +185,10 @@ class ConfigManager:
         """获取界面布局配置"""
         return self.get_section("界面布局配置")
     
+    def get_analog_channel_config(self) -> Dict[str, Any]:
+        """获取模拟量通道配置"""
+        return self.get_section("HMI模拟量通道配置")
+    
     def reload_config(self) -> None:
         """重新加载配置文件"""
         self._config_data.clear()

@@ -20,8 +20,34 @@ class MainDiagramPage:
         self.diagram_image = None
         self.pending_svg_updates = []
         
+        # 加载模拟量通道配置
+        self.analog_channel_config = self.config.get_analog_channel_config()
+        self.channel_id_map = {}  # 通道号到SVG控件ID的映射
+        
+        # 解析模拟量通道配置
+        self._parse_analog_channel_config()
+        
         # 立即注册WebSocket回调
         self._setup_svg_updater()
+    
+    def _parse_analog_channel_config(self):
+        """解析模拟量通道配置"""
+        for key, value in self.analog_channel_config.items():
+            # 配置格式：通道号 = 显示名称,单位,SVG控件ID
+            if key.startswith('通道'):
+                parts = value.split(',')
+                if len(parts) >= 3:
+                    channel_num = key[2:]  # 提取通道号
+                    display_name = parts[0].strip()
+                    unit = parts[1].strip()
+                    svg_id = parts[2].strip()
+                    
+                    # 创建通道号到SVG控件ID的映射
+                    self.channel_id_map[channel_num] = {
+                        'display_name': display_name,
+                        'unit': unit,
+                        'svg_id': svg_id
+                    }
         
     def create_page(self) -> ui.column:
         """创建主接线图页面"""
@@ -148,14 +174,6 @@ class MainDiagramPage:
     def update_svg_control(self, control_id: str, value: str, is_normal: bool = True):
         """更新SVG中的控件显示值"""
         try:
-            id_map = {
-                'sv1': 'SV1_value',
-                'sa1': 'SA1_value', 
-                'sa2': 'SA2_value',
-                # 'km1': 'KM1_state',  # SVG中没有这个元素，只处理图形变化
-            }
-            el_id = id_map.get(control_id.lower())
-            
             # 对于KM1，只处理图形变化，不更新文本
             if control_id.lower() == 'km1':
                 # logger.info(f"更新KM1图形状态: {value}")
@@ -208,14 +226,31 @@ class MainDiagramPage:
                 ui.run_javascript(js_code)
                 return
             
-            # 处理其他控件的文本更新
+            # 处理模拟量控件的文本更新
+            # 首先尝试从通道配置中查找
+            el_id = None
+            for channel_num, channel_info in self.channel_id_map.items():
+                if control_id.lower() == channel_info['svg_id'].lower():
+                    # 直接使用配置文件中的SVG控件ID，不再添加_value后缀
+                    el_id = channel_info['svg_id']
+                    break
+            
+            # 如果在通道配置中找不到，使用默认映射
+            if not el_id:
+                default_id_map = {
+                    'sv1': 'SV1_value',
+                    'sv2': 'SV2_value',
+                    'sa1': 'SA1_value', 
+                    'sa2': 'SA2_value',
+                }
+                el_id = default_id_map.get(control_id.lower())
+            
             if not el_id:
                 logger.warning(f'未知控件: {control_id}')
                 return
 
             # logger.info(f"更新SVG控件: {control_id} -> {el_id} = {value}")
             
-            color = '#00ff00' if is_normal else '#ff0000'
             js_code = f"""
             console.log('更新SVG控件: {control_id} -> {el_id} = {value}');
             const el = document.getElementById('{el_id}');
@@ -224,7 +259,7 @@ class MainDiagramPage:
                 const t = el.querySelector('tspan');
                 console.log('找到tspan:', t);
                 (t||el).textContent = '{value}';
-                (t||el).setAttribute('fill', '{color}');
+                (t||el).setAttribute('fill', '#00ff00');
                 console.log('更新完成');
             }} else {{
                 console.error('未找到元素:', '{el_id}');
@@ -247,23 +282,28 @@ class MainDiagramPage:
                     name = item.get('name', '')
                     value = item.get('physical_value')
                     unit = item.get('unit', '')
-                    is_normal = self._check_value_normal(name, value)
                     
                     # logger.info(f"处理模拟量项: name={name}, value={value}, unit={unit}")
                     
-                    # 根据数据名称更新对应的控件
-                    if '支路电压1' in name or '电压' in name:
-                        display_value = f"{value:.1f}{unit}" if value is not None else "0V"
-                        # logger.info(f"更新SV1: {display_value}")
-                        self.queue_svg_update('sv1', display_value, is_normal)
-                    elif '支路1电流' in name:
-                        display_value = f"{value:.1f}{unit}" if value is not None else "0A"
-                        # logger.info(f"更新SA1: {display_value}")
-                        self.queue_svg_update('sa1', display_value, is_normal)
-                    elif '支路2电流' in name:
-                        display_value = f"{value:.1f}{unit}" if value is not None else "0A"
-                        # logger.info(f"更新SA2: {display_value}")
-                        self.queue_svg_update('sa2', display_value, is_normal)
+                    # 使用通用通道名称处理模拟量数据
+                    # 遍历通道配置，查找匹配的通道
+                    for channel_num, channel_info in self.channel_id_map.items():
+                        display_name = channel_info['display_name']
+                        svg_id = channel_info['svg_id']  # 直接使用配置文件中的SVG控件ID
+                        channel_unit = channel_info['unit']
+                        
+                        # 检查是否匹配当前通道
+                        if display_name in name:
+                            # 检查SVG控件ID是否为空，为空则跳过更新（保留通道）
+                            if not svg_id:
+                                # logger.info(f"通道{channel_num}({display_name})为保留通道，跳过更新")
+                                continue
+                                
+                            display_value = f"{value:.1f}{channel_unit}" if value is not None else f"0{channel_unit}"
+                            # logger.info(f"更新通道{channel_num}({svg_id}): {display_value}")
+                            # 直接传递SVG控件ID，不再需要转换
+                            self.queue_svg_update(svg_id, display_value, True)
+                            break
             else:
                 logger.warning(f"模拟量数据格式不正确，期望列表，实际: {type(data)}")
         except Exception as e:
@@ -300,15 +340,3 @@ class MainDiagramPage:
         """处理开关量数据回调（已废弃，保留用于兼容性）"""
         logger.warning("_handle_digital_data_callback方法已废弃，switch_io数据类型已合并到system_status中")
         # 可以保留原有逻辑作为后备，但应该不会再被调用
-
-    def _check_value_normal(self, name: str, value: float) -> bool:
-        """检查数值是否正常"""
-        if value is None:
-            return False
-        
-        if '电压' in name or 'SV' in name:
-            return 180.0 <= value <= 250.0
-        elif '电流' in name or 'SA' in name:
-            return 0.0 <= value <= 10.0
-        
-        return True

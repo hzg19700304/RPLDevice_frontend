@@ -120,14 +120,14 @@ class RealTimeCurvePage:
         from nicegui import context
         self.ui_client = context.client
         
-        with ui.column().classes('w-full h-full p-4'):
-            with ui.card().classes('w-full p-4'):
+        with ui.column().classes('w-full h-full p-2'):
+            with ui.card().classes('w-full p-2'):
                 # 标题和控制区域
-                with ui.row().classes('w-full items-center justify-between mb-4'):
+                with ui.row().classes('w-full items-center justify-between mb-2'):
                     ui.label('实时曲线').classes('text-h6')
                     
                 # 参数选择
-                with ui.row().classes('items-center gap-4'):
+                with ui.row().classes('items-center gap-2'):
                     ui.label('显示参数:').classes('text-subtitle2')
                     
                     # 保存复选框引用

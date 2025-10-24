@@ -165,7 +165,7 @@ class ParameterSettingsPage:
         
         with ui.card().classes('w-full').style('height: calc(100vh - 120px); overflow-y: auto;') as main_card:
             self.main_container = main_card  # 保存主容器引用
-            ui.label('控制参数设置').classes('text-h5 q-mb-md')
+            ui.label('控制参数设置').classes('text-h5')
             
             # 顶部操作按钮
             with ui.row().classes('w-full q-mb-md justify-end'):

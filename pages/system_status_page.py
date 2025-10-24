@@ -117,10 +117,10 @@ class SystemStatusPage:
         .status-item-row {{
             display: flex !important;
             align-items: center !important;
-            gap: 8px !important;
+            gap: 0px !important;
             min-height: {item_min_height}px !important;
-            padding: 2px 4px !important;
-            margin: 1px 0 !important;
+            padding: 0px 4px !important;
+            margin: 0px 0 !important;
         }}
         
         .status-text {{
@@ -404,9 +404,9 @@ class SystemStatusPage:
         card_min_width = layout_config.get('status_card_min_width', 280)
         item_min_height = layout_config.get('status_item_min_height', 24)
         
-        with ui.card().classes('flex-1 q-pa-md status-card').style(f'min-width: {card_min_width}px; height: calc(100vh - 160px); display: flex; flex-direction: column'):
+        with ui.card().classes('flex-1 q-pa-md status-card').style(f'min-width: {card_min_width}px; height: calc(100vh - 170px); display: flex; flex-direction: column'):
             # 卡片标题 - 使用响应式字体大小
-            ui.label(group_name).classes('text-center responsive-title').style('margin-bottom: 12px; white-space: nowrap;')
+            ui.label(group_name).classes('text-center responsive-title').style('margin-bottom: 0px; white-space: nowrap;')
             
             # 状态列表，使用flex布局平均分布
             with ui.column().classes('flex-1').style('display: flex; flex-direction: column; justify-content: space-evenly; overflow-y: auto; padding: 4px;'):
