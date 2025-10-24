@@ -243,36 +243,91 @@ ws://192.168.0.11:8765/ws/device?token=eyJhbGc...
 }
 ```
 
-#### （2）参数设置指令
+#### （2）参数写入指令（实际实现）
 
 ```json
 // 前端发送
 {
-  "type": "control_cmd",
+  "type": "param_write",
   "device_id": "HYP_RPLD_001",
-  "cmd": "set_param",
-  "cmd_param": {
-    "reg_addr": "0x2200",
-    "param_name": "过压保护延时(ms)",
-    "param_value": 500
-  },
-  "request_id": "req_20240929143001"
+  "params": [
+    {
+      "reg_addr": "0x2200",
+      "param_name": "过压保护延时(ms)",
+      "param_value": 500
+    },
+    {
+      "reg_addr": "0x2201",
+      "param_name": "支路过流保护值(A)",
+      "param_value": 150
+    }
+  ],
+  "request_id": "req_param_write_001"
 }
 
 // 后端响应
 {
-  "type": "control_ack",
+  "type": "param_write_ack",
   "device_id": "HYP_RPLD_001",
-  "request_id": "req_20240929143001",
-  "cmd": "set_param",
+  "request_id": "req_param_write_001",
   "exec_status": "success",
-  "exec_msg": "参数设置成功",
-  "current_value": 500,
+  "exec_msg": "参数写入成功",
+  "data": {
+    "success_count": 2,
+    "total_count": 2,
+    "params": [
+      {
+        "reg_addr": "0x2200",
+        "param_name": "过压保护延时(ms)",
+        "param_value": 500,
+        "write_result": "success"
+      },
+      {
+        "reg_addr": "0x2201",
+        "param_name": "支路过流保护值(A)",
+        "param_value": 150,
+        "write_result": "success"
+      }
+    ]
+  },
   "timestamp": "2024-09-29 14:30:01.123"
 }
 ```
 
-#### （3）工作模式切换指令
+#### （3）参数写入失败响应
+
+```json
+// 后端响应（部分参数写入失败）
+{
+  "type": "param_write_ack",
+  "device_id": "HYP_RPLD_001",
+  "request_id": "req_param_write_001",
+  "exec_status": "partial_success",
+  "exec_msg": "部分参数写入失败",
+  "data": {
+    "success_count": 1,
+    "total_count": 2,
+    "params": [
+      {
+        "reg_addr": "0x2200",
+        "param_name": "过压保护延时(ms)",
+        "param_value": 500,
+        "write_result": "success"
+      },
+      {
+        "reg_addr": "0x2201",
+        "param_name": "支路过流保护值(A)",
+        "param_value": 150,
+        "write_result": "fail",
+        "error_msg": "地址不支持切换模拟模式"
+      }
+    ]
+  },
+  "timestamp": "2024-09-29 14:30:01.123"
+}
+```
+
+#### （4）工作模式切换指令
 
 ```json
 // 前端发送
@@ -300,7 +355,7 @@ ws://192.168.0.11:8765/ws/device?token=eyJhbGc...
 }
 ```
 
-#### （4）指令冲突响应
+#### （5）指令冲突响应
 
 ```json
 {

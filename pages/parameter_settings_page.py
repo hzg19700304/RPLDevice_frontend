@@ -85,27 +85,76 @@ class ParameterSettingsPage:
     async def _handle_param_write_response(self, data):
         """处理参数写入响应"""
         try:
-            if data.get('exec_status') == 'success':
-                # 使用run_javascript来安全地显示通知
-                await ui.run_javascript('''
-                    Quasar.Notify.create({
-                        message: '参数写入成功',
-                        type: 'positive',
-                        position: 'top',
-                        timeout: 3000
-                    })
-                ''')
+            # 确保在主UI上下文中处理响应
+            if self.main_container is not None:
+                with self.main_container:
+                    if data.get('exec_status') == 'success':
+                        # 检查是否是模拟模式
+                        is_simulation = data.get('simulation_mode', False)
+                        if is_simulation:
+                            # 使用run_javascript来安全地显示通知
+                            await ui.run_javascript('''
+                                Quasar.Notify.create({
+                                    message: '参数写入成功 (模拟模式: 设备不支持这些地址)',
+                                    type: 'info',
+                                    position: 'top',
+                                    timeout: 5000
+                                })
+                            ''')
+                        else:
+                            # 使用run_javascript来安全地显示通知
+                            await ui.run_javascript('''
+                                Quasar.Notify.create({
+                                    message: '参数写入成功',
+                                    type: 'positive',
+                                    position: 'top',
+                                    timeout: 3000
+                                })
+                            ''')
+                    else:
+                        error_msg = data.get('exec_msg', '未知错误')
+                        # 使用run_javascript来安全地显示错误通知
+                        await ui.run_javascript(f'''
+                            Quasar.Notify.create({{
+                                message: '参数写入失败: {error_msg}',
+                                type: 'negative',
+                                position: 'top',
+                                timeout: 5000
+                            }})
+                        ''')
             else:
-                error_msg = data.get('exec_msg', '未知错误')
-                # 使用run_javascript来安全地显示错误通知
-                await ui.run_javascript(f'''
-                    Quasar.Notify.create({{
-                        message: '参数写入失败: {error_msg}',
-                        type: 'negative',
-                        position: 'top',
-                        timeout: 5000
-                    }})
-                ''')
+                # 如果没有主容器，直接使用run_javascript
+                if data.get('exec_status') == 'success':
+                    # 检查是否是模拟模式
+                    is_simulation = data.get('simulation_mode', False)
+                    if is_simulation:
+                        await ui.run_javascript('''
+                            Quasar.Notify.create({
+                                message: '参数写入成功 (模拟模式: 设备不支持这些地址)',
+                                type: 'info',
+                                position: 'top',
+                                timeout: 5000
+                            })
+                        ''')
+                    else:
+                        await ui.run_javascript('''
+                            Quasar.Notify.create({
+                                message: '参数写入成功',
+                                type: 'positive',
+                                position: 'top',
+                                timeout: 3000
+                            })
+                        ''')
+                else:
+                    error_msg = data.get('exec_msg', '未知错误')
+                    await ui.run_javascript(f'''
+                        Quasar.Notify.create({{
+                            message: '参数写入失败: {error_msg}',
+                            type: 'negative',
+                            position: 'top',
+                            timeout: 5000
+                        }})
+                    ''')
         except Exception as e:
             logger.error(f"处理参数写入响应失败: {e}")
         
@@ -372,10 +421,12 @@ class ParameterSettingsPage:
             logger.info(f"发送写入参数请求: {len(param_values)} 个参数")
             
             # 发送写入参数请求
-            await self.websocket_client.send_message('param_write', {
-                'write_type': 'control_params',
-                'params': param_values
-            })
+            await self.websocket_client.send_message(
+                'param_write', 
+                {
+                    'write_type': 'control_params',
+                    'params': param_values
+                })
             
             # 使用run_javascript来安全地显示通知
             await ui.run_javascript('''

@@ -161,6 +161,13 @@ class WebSocketClient:
         message_type = message.get('type')
         data = message.get('data', {})
         
+        # 对于param_write_ack类型的消息，需要特殊处理，因为exec_status和exec_msg在根级别
+        if message_type == 'param_write_ack':
+            # 将根级别的字段合并到data中，确保回调函数可以访问
+            for key in ['exec_status', 'exec_msg', 'request_id', 'device_id', 'timestamp']:
+                if key in message and key not in data:
+                    data[key] = message[key]
+        
         # if message_type == 'full_snapshot':
         #     logger.info(f"全量快照数据详情: {message}")
         # # 处理特殊消息类型
