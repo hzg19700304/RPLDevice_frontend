@@ -277,7 +277,13 @@ class RPLDeviceHMI:
     async def start_websocket(self):
         """启动WebSocket连接"""
         if self.websocket_client:
-            await self.websocket_client.connect()
+            logger.info("开始连接WebSocket服务器")
+            result = await self.websocket_client.connect()
+            logger.info(f"WebSocket连接结果: {result}")
+            
+            # 获取连接状态
+            status = self.websocket_client.get_connection_status()
+            logger.info(f"WebSocket连接状态: {status}")
     
     async def shutdown(self):
         """关闭应用"""
@@ -292,7 +298,9 @@ hmi_app = RPLDeviceHMI()
 async def index():
     """主页面"""
     await hmi_app.initialize()
-    await hmi_app.start_websocket()
+    
+    # 确保WebSocket连接在页面加载完成后建立
+    ui.timer(1.0, hmi_app.start_websocket, once=True)
 
 if __name__ in {"__main__", "__mp_main__"}:
     # 配置NiceUI应用

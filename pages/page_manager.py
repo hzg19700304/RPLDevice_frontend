@@ -12,6 +12,7 @@ from .event_record_page import EventRecordPage
 from .parameter_settings_page import ParameterSettingsPage
 from .real_time_curve_page import RealTimeCurvePage
 from .history_curve_page import HistoryCurvePage
+from .fault_record_page import FaultRecordPage
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ class PageManager:
         self.parameter_settings_page = ParameterSettingsPage(config_manager, websocket_client)
         self.real_time_curve_page = RealTimeCurvePage(config_manager, websocket_client)
         self.history_curve_page = HistoryCurvePage(config_manager, websocket_client)
-
+        self.fault_record_page = FaultRecordPage(config_manager, websocket_client)
+        
     def setup_pages(self) -> None:
         """设置页面"""
         enabled_pages = self.config.get_enabled_pages()
@@ -93,10 +95,10 @@ class PageManager:
                 self.real_time_curve_page.create_page()
             elif page_key == 'show_history_curve':
                 self.history_curve_page.create_page()
+            elif page_key == 'show_fault_record':
+                self.fault_record_page.create_page()
             elif page_key == 'show_api_status':
                 self._create_placeholder_page("API状态")
-            elif page_key == 'show_fault_record':
-                self._create_placeholder_page("故障录波")
             elif page_key == 'show_range_settings':
                 self._create_placeholder_page("量程设置")
             elif page_key == 'show_channel_calibration':

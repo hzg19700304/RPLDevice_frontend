@@ -121,8 +121,10 @@ class WebSocketClient:
                 'data': data
             }
             
-            await self.websocket.send(json.dumps(message, ensure_ascii=False))
-            logger.debug(f"发送消息: {message_type}")
+            message_str = json.dumps(message, ensure_ascii=False)
+            await self.websocket.send(message_str)
+            logger.info(f"发送消息: {message_type}")
+            logger.info(f"消息内容: {message_str}")
             return True
             
         except Exception as e:
@@ -161,6 +163,9 @@ class WebSocketClient:
         message_type = message.get('type')
         data = message.get('data', {})
         
+        # 记录所有收到的消息类型
+        # logger.info(f"收到消息类型: {message_type}")
+        
         # 对于param_write_ack类型的消息，需要特殊处理，因为exec_status和exec_msg在根级别
         if message_type == 'param_write_ack':
             # 将根级别的字段合并到data中，确保回调函数可以访问
@@ -178,11 +183,15 @@ class WebSocketClient:
         
         # 调用注册的回调函数
         if message_type in self.data_callbacks:
+            # logger.info(f"找到 {message_type} 类型的回调函数，数量: {len(self.data_callbacks[message_type])}")
             for callback in self.data_callbacks[message_type]:
                 try:
+                    # logger.info(f"执行 {message_type} 类型的回调函数")
                     await callback(data)
                 except Exception as e:
                     logger.error(f"回调函数执行失败: {e}")
+        else:
+            logger.debug(f"未找到 {message_type} 类型的回调函数")
     
     async def _heartbeat_loop(self) -> None:
         """心跳循环"""
