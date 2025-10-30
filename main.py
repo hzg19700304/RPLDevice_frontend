@@ -65,6 +65,8 @@ class RPLDeviceHMI:
             self.websocket_client.register_data_callback(
                 'serial_status', self._on_serial_status_received)
             
+            # 不需要在这里注册故障录波消息回调，页面内部已经注册
+            
             # logger.info("数据通过WebSocket获取")  # 注释掉调试信息
             
             logger.info("应用初始化完成")
@@ -252,6 +254,7 @@ class RPLDeviceHMI:
     
     async def _on_serial_status_received(self, data: dict):
         """处理串口状态消息回调（兼容旧版本）"""
+        pass
         try:
             hmi_serial_available = data.get('hmi_serial_available', False)
             scada_serial_available = data.get('scada_serial_available', False)

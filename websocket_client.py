@@ -28,6 +28,9 @@ class WebSocketClient:
         # 数据回调函数
         self.data_callbacks = {}
         
+        # 消息回调函数（接收完整消息）
+        self.message_callbacks = {}
+        
         # 连接状态回调
         self.connection_callbacks = []
         
@@ -192,6 +195,16 @@ class WebSocketClient:
                     logger.error(f"回调函数执行失败: {e}")
         else:
             logger.debug(f"未找到 {message_type} 类型的回调函数")
+        
+        # 调用消息回调函数（接收完整消息）
+        if message_type in self.message_callbacks:
+            logger.debug(f"找到 {message_type} 类型的消息回调函数，数量: {len(self.message_callbacks[message_type])}")
+            for callback in self.message_callbacks[message_type]:
+                try:
+                    logger.debug(f"执行 {message_type} 类型的消息回调函数")
+                    await callback(message)
+                except Exception as e:
+                    logger.error(f"消息回调函数执行失败: {e}")
     
     async def _heartbeat_loop(self) -> None:
         """心跳循环"""
@@ -251,6 +264,13 @@ class WebSocketClient:
             self.data_callbacks[message_type] = []
         self.data_callbacks[message_type].append(callback)
         logger.debug(f"注册数据回调: {message_type}")
+    
+    def register_message_callback(self, message_type: str, callback: Callable) -> None:
+        """注册消息回调函数（接收完整消息）"""
+        if message_type not in self.message_callbacks:
+            self.message_callbacks[message_type] = []
+        self.message_callbacks[message_type].append(callback)
+        logger.debug(f"注册消息回调: {message_type}")
     
     def register_connection_callback(self, callback: Callable) -> None:
         """注册连接状态回调函数"""

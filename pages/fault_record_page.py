@@ -33,41 +33,45 @@ class FaultRecordPage:
         self.available_records = 0
         self.current_record_id = 0
         self.is_reading = False
+        self.is_cancelling = False  # 新增：取消标志位
         self.current_request_id = None
+        self.total_records = 0  # 总记录数
+        self.current_record = 0  # 当前记录
+        self.current_progress = 0  # 当前进度
         
         # 获取配置
         self.analog_mapping = self._load_analog_mapping()
         self.status_bits = self._load_status_bits()
-        self.input_bits = self._load_input_bits()
-        self.output_bits = self._load_output_bits()
+        # self.input_bits = self._load_input_bits()
+        # self.output_bits = self._load_output_bits()
         
         # 注册WebSocket回调
         if self.websocket_client:
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_list_ack', 
                 self._handle_directory_response
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_read_start', 
                 self._handle_read_start
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_progress', 
                 self._handle_read_progress
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_complete', 
                 self._handle_read_complete
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_error', 
                 self._handle_read_error
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'fault_record_cancelled', 
                 self._handle_read_cancelled
             )
-            self.websocket_client.register_data_callback(
+            self.websocket_client.register_message_callback(
                 'control_ack', 
                 self._handle_clear_response
             )
@@ -91,25 +95,25 @@ class FaultRecordPage:
                 bits[int(bit_num)] = value
         return bits
 
-    def _load_input_bits(self):
-        """加载开关量输入点表"""
-        bits = {}
-        section = 'HMI开关量输入点表'
-        if self.config.config.has_section(section):
-            for key, value in self.config.config.items(section):
-                bit_num = key.replace('bit', '')
-                bits[int(bit_num)] = value
-        return bits
+    # def _load_input_bits(self):
+    #     """加载开关量输入点表"""
+    #     bits = {}
+    #     section = 'HMI开关量输入点表'
+    #     if self.config.config.has_section(section):
+    #         for key, value in self.config.config.items(section):
+    #             bit_num = key.replace('bit', '')
+    #             bits[int(bit_num)] = value
+    #     return bits
 
-    def _load_output_bits(self):
-        """加载开关量输出点表"""
-        bits = {}
-        section = 'HMI开关量输出点表'
-        if self.config.config.has_section(section):
-            for key, value in self.config.config.items(section):
-                bit_num = key.replace('bit', '')
-                bits[int(bit_num)] = value
-        return bits
+    # def _load_output_bits(self):
+    #     """加载开关量输出点表"""
+    #     bits = {}
+    #     section = 'HMI开关量输出点表'
+    #     if self.config.config.has_section(section):
+    #         for key, value in self.config.config.items(section):
+    #             bit_num = key.replace('bit', '')
+    #             bits[int(bit_num)] = value
+    #     return bits
 
     def create_page(self):
         """创建页面"""
@@ -151,9 +155,6 @@ class FaultRecordPage:
                 ui.button('查询详情', on_click=lambda: self._query_detail())\
                     .props('unelevated color=primary dense')
                 
-                ui.button('取消', on_click=lambda: self._cancel_reading())\
-                    .props('outline color=grey-7 dense')
-                
                 ui.button('清除记录', on_click=lambda: self._show_clear_confirm())\
                     .props('outline color=negative dense')
 
@@ -174,16 +175,14 @@ class FaultRecordPage:
 
     def _create_data_table(self):
         """创建数据表格"""
-        # 构建表格列定义
+        # 构建表格列定义 - 适配新4寄存器格式（系统状态 + SA1 + SA2 + SV1）
         columns = [
             {'name': 'index', 'label': '序号', 'field': 'index', 'align': 'center', 'style': 'width: 60px'},
             {'name': 'system_status', 'label': '系统状态', 'field': 'system_status', 'align': 'center', 'style': 'width: 80px'},
-            {'name': 'switch_input', 'label': '开关量输入', 'field': 'switch_input', 'align': 'center', 'style': 'width: 80px'},
-            {'name': 'switch_output', 'label': '开关量输出', 'field': 'switch_output', 'align': 'center', 'style': 'width: 80px'},
         ]
         
-        # 添加模拟量列（从配置中读取）
-        analog_columns = ['SV1', 'SV2', 'SA1', 'SA2']
+        # 添加模拟量列（从配置中读取）- 只包含实际支持的3个模拟量
+        analog_columns = ['SA1', 'SA2', 'SV1']  # 移除SV2，只保留实际支持的3个模拟量
         for col in analog_columns:
             col_name = self.analog_mapping.get(col.lower(), col)
             columns.append({
@@ -198,36 +197,49 @@ class FaultRecordPage:
             columns=columns,
             rows=[],
             row_key='index'
-        ).classes('w-full')
+        ).classes('w-full h-96')  # 设置固定高度，启用滚动条
         
-        # 设置表格点击事件
-        self.data_table.on('row-click', self._on_row_click)
+        # 重写 body 插槽，添加单元格点击事件
+        self.data_table.add_slot('body', r'''
+            <q-tr :props="props">
+                <q-td v-for="col in props.cols" 
+                      :key="col.name" 
+                      :props="props"
+                      @click="$parent.$emit('cell-click', {row: props.row, col: col.name, colIndex: props.cols.indexOf(col)})"
+                >
+                    {{ col.value }}
+                </q-td>
+            </q-tr>
+        ''')
+        
+        # 设置表格事件 - 只保留单元格点击事件
+        self.data_table.on('cell-click', self._on_cell_click)
 
     async def _query_directory(self):
-        """查询故障录波目录"""
-        logger.info("查询故障录波目录")
-        
+        """查询故障录波目录"""   
         # 检查WebSocket连接状态
         if not self.websocket_client.is_connected:
             logger.error("WebSocket未连接，无法查询故障录波目录")
             ui.notify('WebSocket未连接，请检查网络连接', type='negative')
             return
         
+        # 从配置文件获取设备ID
+        device_id = self.config.get('设备配置', '设备ID', 'HYP_RPLD_001')
+        
         # 发送WebSocket请求
         message = {
             'type': 'fault_record_list',
-            'device_id': 'HYP_RPLD_001',
+            'device_id': device_id,
             'request_id': f'req_dir_{datetime.now().timestamp()}'
         }
         
-        logger.info(f"准备发送故障录波目录查询消息: {message}")
         result = await self.websocket_client.send_message(message['type'], message)
         logger.info(f"消息发送结果: {result}")
         
-        if result:
-            ui.notify('正在查询故障录波目录...', type='info')
-        else:
-            ui.notify('发送查询请求失败，请检查网络连接', type='negative')
+        # if result:
+        #     ui.notify('正在查询故障录波目录...', type='info')
+        # else:
+        #     ui.notify('发送查询请求失败，请检查网络连接', type='negative')
 
     async def _query_detail(self):
         """查询故障录波详情"""
@@ -236,23 +248,33 @@ class FaultRecordPage:
             return
         
         record_id = self.record_select.value
-        logger.info(f"查询故障录波详情，记录编号: {record_id}")
         
         self.is_reading = True
         self.current_request_id = f'req_fault_read_{datetime.now().timestamp()}'
         
+        # 先显示进度对话框，再发送请求
+        self._show_progress_dialog()
+        
+        # 从配置文件获取设备ID
+        device_id = self.config.get('设备配置', '设备ID', 'HYP_RPLD_001')
+        
         # 发送WebSocket请求
         message = {
             'type': 'fault_record_read',
-            'device_id': 'HYP_RPLD_001',
+            'device_id': device_id,
             'record_id': record_id,
             'request_id': self.current_request_id
         }
         
-        await self.websocket_client.send_message(message['type'], message)
+        result = await self.websocket_client.send_message(message['type'], message)
+        logger.info(f"故障录波详情消息发送结果: {result}")
         
-        # 显示进度对话框
-        self._show_progress_dialog()
+        # 如果发送失败，立即关闭进度对话框并显示错误
+        if not result:
+            self.is_reading = False
+            if self.progress_dialog:
+                self.progress_dialog.close()
+            ui.notify('发送查询请求失败，请检查网络连接', type='negative')
 
     async def _cancel_reading(self):
         """取消读取"""
@@ -261,16 +283,22 @@ class FaultRecordPage:
         
         logger.info("用户取消故障录波读取")
         
+        # 设置取消标志位
+        self.is_cancelling = True
+        self.is_reading = False
+        
+        # 从配置文件获取设备ID
+        device_id = self.config.get('设备配置', '设备ID', 'HYP_RPLD_001')
+        
         # 发送取消请求
         message = {
             'type': 'fault_record_cancel',
-            'device_id': 'HYP_RPLD_001',
+            'device_id': device_id,
             'request_id': self.current_request_id
         }
         
         await self.websocket_client.send_message(message['type'], message)
         
-        self.is_reading = False
         if self.progress_dialog:
             self.progress_dialog.close()
 
@@ -319,7 +347,7 @@ class FaultRecordPage:
             
             with ui.row().classes('w-full justify-between q-mt-md'):
                 self.progress_text = ui.label('当前批次: 0/0')
-                ui.label('预计剩余时间: --')
+                # ui.label('预计剩余时间: --')
             
             ui.button('取消查询', on_click=self._cancel_reading)\
                 .props('flat color=negative').classes('w-full q-mt-md')
@@ -340,40 +368,43 @@ class FaultRecordPage:
                 for bit_num in range(16):
                     if bit_num in bit_mapping:
                         is_set = (int_value >> bit_num) & 1
-                        icon = '🟢' if is_set else '🔴'
-                        status = bit_mapping[bit_num]
-                        ui.label(f'bit{bit_num}: {icon} {status}').classes('text-body2')
+                        icon = '🔴' if is_set else '🟢'
+                        status_text = bit_mapping[bit_num]
+                        # 如果状态文本包含逗号，取右边部分（1状态）
+                        if ',' in status_text:
+                            status_parts = status_text.split(',')
+                            display_status = status_parts[1]
+                        else:
+                            display_status = status_text
+                        ui.label(f'bit{bit_num}: {icon} {display_status}').classes('text-body2')
             
             ui.button('关闭', on_click=dialog.close).props('flat').classes('w-full')
         
         dialog.open()
 
-    def _on_row_click(self, event):
-        """表格行点击事件"""
-        row = event.args[1]
-        col = event.args[2]
+    def _on_cell_click(self, event):
+        """表格单元格点击事件"""
+        # event.args 结构: {row: 行数据, col: 列名, colIndex: 列索引}
+        row_data = event.args['row']
+        col_name = event.args['col']
+        # col_index = event.args['colIndex']
         
-        # 点击系统状态列
-        if col == 'system_status':
-            self._show_bit_parse_dialog(
-                '系统状态',
-                row['system_status'],
-                self.status_bits
-            )
-        # 点击开关量输入列
-        elif col == 'switch_input':
-            self._show_bit_parse_dialog(
-                '开关量输入',
-                row['switch_input'],
-                self.input_bits
-            )
-        # 点击开关量输出列
-        elif col == 'switch_output':
-            self._show_bit_parse_dialog(
-                '开关量输出',
-                row['switch_output'],
-                self.output_bits
-            )
+        # logger.info(f"点击单元格: 列'{col_name}' (索引{col_index}), 值: {row_data[col_name]}")
+        
+        # 根据点击的列处理相应的数据
+        if isinstance(row_data, dict):
+            # logger.info(f"正在处理列 {col_name} 的点击事件")
+            if col_name == 'system_status' and 'system_status' in row_data:
+                # logger.info(f"显示系统状态解析框: {row_data['system_status']}")
+                self._show_bit_parse_dialog(
+                    '系统状态',
+                    row_data['system_status'],
+                    self.status_bits
+                )
+            else:
+                logger.warning(f"列 {col_name} 没有对应的处理逻辑或数据不存在")
+        else:
+            logger.warning(f"行数据类型错误: {type(row_data)}")
 
     async def handle_websocket_message(self, message):
         """处理WebSocket消息"""
@@ -396,6 +427,9 @@ class FaultRecordPage:
         elif msg_type == 'control_ack':
             if message.get('cmd') == 'fault_record_clear':
                 await self._handle_clear_response(message)
+        elif msg_type == 'error':
+            # 处理通用错误消息
+            await self._handle_general_error(message)
         else:
             logger.warning(f"未知的消息类型: {msg_type}")
 
@@ -405,13 +439,18 @@ class FaultRecordPage:
             logger.info(f"收到目录查询响应: {message}")
             
             # 从消息中提取故障录波目录信息
-            # 注意：message本身就是数据对象，不是包含data字段的对象
-            self.available_records = message.get('total_records', 0)
+            # 注意：有些情况下消息本身就是数据，需要兼容处理
+            if 'total_records' in message and 'data' not in message:
+                # 消息本身就是数据格式
+                data = message
+            else:
+                # 标准格式：数据在data字段中
+                data = message.get('data', {})
             
-            logger.info(f"提取的记录数: {self.available_records}")
+            self.available_records = data.get('total_records', 0)
             
             # 存储记录信息供后续使用
-            self.fault_records_info = message.get('records', [])
+            self.fault_records_info = data.get('records', [])
             
             # 确保在主UI上下文中处理响应
             if self.main_container is not None:
@@ -419,7 +458,6 @@ class FaultRecordPage:
                     # 更新UI
                     if self.record_count_label:
                         self.record_count_label.set_text(str(self.available_records))
-                        logger.info(f"已更新记录数标签: {self.available_records}")
                     
                     # 更新记录选择下拉框
                     if self.record_select:
@@ -427,7 +465,6 @@ class FaultRecordPage:
                         self.record_select.set_options(options)
                         if options:
                             self.record_select.set_value(0)
-                        logger.info(f"已更新记录选择下拉框: {options}")
                     
                     # 使用run_javascript来安全地显示通知
                     await ui.run_javascript(f'''
@@ -454,12 +491,27 @@ class FaultRecordPage:
 
     async def _handle_read_start(self, message):
         """处理读取开始响应"""
+
+        logger.info(f"收到读取开始响应: {message}")
+
+        # 如果正在取消，忽略开始消息
+        if self.is_cancelling:
+            logger.info("收到开始消息但正在取消中，忽略")
+            return
+
         try:
-            data = message.get('data', {})
+            # 兼容处理不同的消息格式
+            if 'exec_status' in message and 'data' not in message:
+                data = message
+            else:
+                data = message.get('data', {})
+                
             if data.get('exec_status') == 'success':
-                # 重置进度
+                # 重置进度和取消标志位
                 self.current_progress = 0
-                self.total_records = data.get('total_records', 0)
+                self.is_cancelling = False  # 重置取消标志位
+                # 适配后端格式：使用 total_batches 作为 total_records
+                self.total_records = data.get('total_batches', 301)  # 默认301批
                 
                 # 更新进度条
                 self._update_progress_ui()
@@ -480,33 +532,9 @@ class FaultRecordPage:
                     # 如果没有主容器，直接使用run_javascript
                     await ui.run_javascript('''
                         Quasar.Notify.create({
-                            message: '开始读取故障记录...',
-                            type: 'info',
-                            position: 'top',
-                            timeout: 3000
+                            # 显示完成通知 - 使用ui.notify避免JavaScript超时
+                            ui.notify('开始读取故障记录...', type='info', position='top', timeout=3000)
                         })
-                    ''')
-            else:
-                error_msg = data.get('exec_msg', '未知错误')
-                # 确保在主UI上下文中处理响应
-                if self.main_container is not None:
-                    with self.main_container:
-                        await ui.run_javascript(f'''
-                            Quasar.Notify.create({{
-                                message: '读取故障记录失败: {error_msg}',
-                                type: 'negative',
-                                position: 'top',
-                                timeout: 5000
-                            }})
-                        ''')
-                else:
-                    await ui.run_javascript(f'''
-                        Quasar.Notify.create({{
-                            message: '读取故障记录失败: {error_msg}',
-                            type: 'negative',
-                            position: 'top',
-                            timeout: 5000
-                        }})
                     ''')
         except Exception as e:
             logger.error(f"处理读取开始响应失败: {e}")
@@ -519,18 +547,40 @@ class FaultRecordPage:
                 }})
             ''')
 
-    async def _handle_read_progress(self, data):
+    async def _handle_read_progress(self, message):
         """处理读取进度"""
+        # 如果正在取消，忽略进度消息
+        if self.is_cancelling:
+            # logger.info("收到进度消息但正在取消中，忽略")
+            return
+            
         try:
-            # 更新进度
-            self.current_progress = data.get('progress', 0)
-            self.current_record = data.get('current_record', 0)
+            # 适配后端实际发送的数据格式
+            if 'percentage' in message:
+                # 后端格式：包含 percentage, current_batch, total_batches
+                self.current_progress = message.get('percentage', 0)
+                self.current_record = message.get('current_batch', 0)
+                self.total_records = message.get('total_batches', 301)  # 默认301批
+                # logger.info(f"检测到后端标准格式进度消息 - percentage: {self.current_progress}%, current_batch: {self.current_record}, total_batches: {self.total_records}")
+            elif 'progress' in message and 'data' not in message:
+                # 另一种可能的格式
+                self.current_progress = message.get('progress', 0)
+                self.current_record = message.get('current_record', 0)
+                self.total_records = message.get('total_records', 301)
+                # logger.info(f"检测到读取进度消息本身就是数据格式 - progress: {self.current_progress}%, current_record: {self.current_record}, total_records: {self.total_records}")
+            else:
+                # 标准格式：data 中包含进度信息
+                data = message.get('data', {})
+                self.current_progress = data.get('progress', 0)
+                self.current_record = data.get('current_record', 0)
+                self.total_records = data.get('total_records', 301)
+                # logger.info(f"检测到读取进度标准格式 - progress: {self.current_progress}%, current_record: {self.current_record}, total_records: {self.total_records}")
             
             # 更新进度条
             self._update_progress_ui()
             
             # 记录日志
-            logger.info(f"读取进度: {self.current_progress}% ({self.current_record}/{self.total_records})")
+            # logger.info(f"读取进度: {self.current_progress}% ({self.current_record}/{self.total_records})")
         except Exception as e:
             logger.error(f"处理读取进度失败: {e}")
     
@@ -555,8 +605,14 @@ class FaultRecordPage:
         except Exception as e:
             logger.error(f"更新进度UI失败: {e}")
 
-    async def _handle_read_complete(self, data):
+    async def _handle_read_complete(self, message):
         """处理读取完成响应"""
+        # 如果正在取消，忽略完成消息
+        if self.is_cancelling:
+            # logger.info("收到完成消息但正在取消中，忽略")
+            self.is_cancelling = False  # 重置取消标志位
+            return
+            
         try:
             self.is_reading = False
             
@@ -564,19 +620,32 @@ class FaultRecordPage:
             if self.progress_dialog:
                 self.progress_dialog.close()
             
+            # 从消息中提取数据 - 兼容处理不同格式
+            if 'fault_info' in message and 'data' not in message:
+                data = message
+                # logger.info("检测到读取完成消息本身就是数据格式")
+            else:
+                data = message.get('data', {})
+                # logger.info("检测到读取完成标准格式")
+            
             # 确保在主UI上下文中处理响应
             if self.main_container is not None:
                 with self.main_container:
-                    if data.get('exec_status') == 'success':
+                    if data:  # 检查是否有数据
                         # 获取故障记录数据
-                        fault_records = data.get('fault_records', [])
+                        fault_info = data.get('fault_info', {})
+                        data_points = data.get('data_points', [])
+                        
+                        # 更新故障信息
+                        self._update_fault_info(fault_info)
                         
                         # 更新数据表格
-                        self._update_data_table(fault_records)
+                        self._update_data_table(data_points)
                         
-                        # 更新进度条到100%
+                        # 更新进度条到100% - 确保完成时总是显示100%
                         self.current_progress = 100
                         self.current_record = self.total_records
+                        logger.info(f"读取完成，设置最终进度: {self.current_progress}% ({self.current_record}/{self.total_records})")
                         self._update_progress_ui()
                         
                         # 显示完成通知
@@ -586,10 +655,10 @@ class FaultRecordPage:
                                 type: 'positive',
                                 position: 'top',
                                 timeout: 3000
-                            })
+                            }')
                         ''')
                     else:
-                        error_msg = data.get('exec_msg', '未知错误')
+                        error_msg = '未收到故障记录数据'
                         await ui.run_javascript(f'''
                             Quasar.Notify.create({{
                                 message: '读取故障记录失败: {error_msg}',
@@ -600,16 +669,27 @@ class FaultRecordPage:
                         ''')
             else:
                 # 如果没有主容器，直接使用run_javascript
-                if data.get('exec_status') == 'success':
+                if data:  # 检查是否有数据
                     # 获取故障记录数据
-                    fault_records = data.get('fault_records', [])
+                    fault_info = data.get('fault_info', {})
+                    data_points = data.get('data_points', [])
+                    
+                    # 记录数据点数量用于调试
+                    # logger.info(f"从完成响应中提取到 {len(data_points)} 个数据点")
+                    if len(data_points) > 0:
+                        logger.info(f"第一个数据点示例: {data_points[0] if data_points else '无'}")
+                        logger.info(f"最后一个数据点示例: {data_points[-1] if data_points else '无'}")
+                    
+                    # 更新故障信息
+                    self._update_fault_info(fault_info)
                     
                     # 更新数据表格
-                    self._update_data_table(fault_records)
+                    self._update_data_table(data_points)
                     
-                    # 更新进度条到100%
+                    # 更新进度条到100% - 确保完成时总是显示100%
                     self.current_progress = 100
                     self.current_record = self.total_records
+                    # logger.info(f"读取完成，设置最终进度: {self.current_progress}% ({self.current_record}/{self.total_records})")
                     self._update_progress_ui()
                     
                     # 显示完成通知
@@ -619,10 +699,10 @@ class FaultRecordPage:
                             type: 'positive',
                             position: 'top',
                             timeout: 3000
-                        })
+                        }')
                     ''')
                 else:
-                    error_msg = data.get('exec_msg', '未知错误')
+                    error_msg = '未收到故障记录数据'
                     await ui.run_javascript(f'''
                         Quasar.Notify.create({{
                             message: '读取故障记录失败: {error_msg}',
@@ -641,19 +721,8 @@ class FaultRecordPage:
                     timeout: 5000
                 }})
             ''')
-    
-    def _update_complete_ui(self, fault_info, data_points):
-        """更新完成UI（非异步函数）"""
-        try:
-            # 更新故障信息
-            self._update_fault_info(fault_info)
-            
-            # 更新数据表格
-            self._update_data_table(data_points)
-        except Exception as e:
-            logger.error(f"更新完成UI失败: {e}")
 
-    async def _handle_read_error(self, data):
+    async def _handle_read_error(self, message):
         """处理读取错误"""
         try:
             self.is_reading = False
@@ -662,8 +731,16 @@ class FaultRecordPage:
             if self.progress_dialog:
                 self.progress_dialog.close()
             
+            # 从消息中提取错误信息 - 兼容处理不同格式
+            if 'error_msg' in message and 'data' not in message:
+                data = message
+                logger.info("检测到读取错误消息本身就是数据格式")
+            else:
+                data = message.get('data', {})
+                logger.info("检测到读取错误标准格式")
+            
             error_msg = data.get('error_msg', '未知错误')
-            current_batch = data.get('current_batch', 0)
+            error_code = data.get('error_code', 0)
             
             # 确保在主UI上下文中处理响应
             if self.main_container is not None:
@@ -675,7 +752,7 @@ class FaultRecordPage:
                         ui.separator()
                         
                         ui.label(f'错误信息: {error_msg}').classes('text-body2 q-my-md')
-                        ui.label(f'失败批次: {current_batch}').classes('text-body2')
+                        ui.label(f'错误代码: {error_code}').classes('text-body2')
                         
                         with ui.row().classes('w-full justify-end gap-2 q-mt-md'):
                             ui.button('取消', on_click=dialog.close).props('flat')
@@ -704,11 +781,63 @@ class FaultRecordPage:
                 }})
             ''')
 
-    async def _handle_read_cancelled(self, data):
+    async def _handle_general_error(self, message):
+        """处理通用错误消息"""
+        try:
+            self.is_reading = False
+            
+            # 关闭进度对话框
+            if self.progress_dialog:
+                self.progress_dialog.close()
+            
+            # 提取错误信息
+            error_code = message.get('error_code', 0)
+            error_msg = message.get('error_msg', '未知错误')
+            
+            logger.error(f"收到通用错误消息: 错误代码={error_code}, 错误信息={error_msg}")
+            
+            # 确保在主UI上下文中处理响应
+            if self.main_container is not None:
+                with self.main_container:
+                    ui.notify(f'读取故障录波失败: {error_msg}', type='negative')
+            else:
+                # 如果没有主容器，直接使用run_javascript
+                await ui.run_javascript(f'''
+                    Quasar.Notify.create({{
+                        message: '读取故障录波失败: {error_msg}',
+                        type: 'negative',
+                        position: 'top',
+                        timeout: 5000
+                    }})
+                ''')
+        except Exception as e:
+            logger.error(f"处理通用错误消息失败: {e}")
+            await ui.run_javascript(f'''
+                Quasar.Notify.create({{
+                    message: '处理错误消息失败: {str(e)}',
+                    type: 'negative',
+                    position: 'top',
+                    timeout: 5000
+                }})
+            ''')
+
+    async def _handle_read_cancelled(self, message):
         """处理取消确认"""
         try:
+            # 从消息中提取数据 - 兼容处理不同格式
+            if 'cancelled_at_batch' in message and 'data' not in message:
+                data = message
+                logger.info("检测到取消消息本身就是数据格式")
+            else:
+                data = message.get('data', {})
+                logger.info("检测到取消消息标准格式")
+                
             cancelled_at_batch = data.get('cancelled_at_batch', 0)
             logger.info(f"故障录波读取已取消，取消于第 {cancelled_at_batch} 批")
+            
+            # 重置取消标志位
+            self.is_cancelling = False
+            self.is_reading = False
             
             # 确保在主UI上下文中处理响应
             if self.main_container is not None:
@@ -735,12 +864,12 @@ class FaultRecordPage:
         except Exception as e:
             logger.error(f"处理取消确认失败: {e}")
             await ui.run_javascript(f'''
-                Quasar.Notify.create({
+                Quasar.Notify.create({{
                     message: '处理取消确认失败: {str(e)}',
                     type: 'negative',
                     position: 'top',
                     timeout: 5000
-                })
+                }})
             ''')
 
     async def _handle_clear_response(self, data):
@@ -850,6 +979,7 @@ class FaultRecordPage:
                     fault_desc = self._generate_fault_description(fault_bits)
                     if self.fault_desc_label:
                         self.fault_desc_label.set_text(fault_desc)
+                        logger.info(f"故障码 {fault_bits} 生成描述: {fault_desc}")
             else:
                 # 如果没有主容器，直接更新UI
                 fault_time = fault_info.get('fault_time', '--')
@@ -870,11 +1000,45 @@ class FaultRecordPage:
 
     def _generate_fault_description(self, fault_bits):
         """根据故障码生成故障描述"""
-        # 这里可以根据实际的故障码映射生成描述
-        # 简化实现，返回示例描述
-        if fault_bits == '--':
-            return '--'
-        return '1段电压保护、2段电流保护、系统异常'
+        try:
+            # 处理十六进制字符串格式的故障码
+            if fault_bits == '--' or not fault_bits:
+                return '--'
+            
+            # 将十六进制字符串转换为整数
+            if isinstance(fault_bits, str) and fault_bits.startswith('0x'):
+                fault_code = int(fault_bits, 16)
+            elif isinstance(fault_bits, str):
+                fault_code = int(fault_bits, 16) if all(c in '0123456789abcdefABCDEF' for c in fault_bits) else 0
+            else:
+                fault_code = int(fault_bits)
+            
+            # 使用页面配置管理器获取故障码映射
+            fault_mapping = self.config.get_fault_code_mapping()
+            
+            # 解析故障码映射表，提取故障描述
+            fault_map = {}
+            for key, value in fault_mapping.items():
+                if key.startswith('bit') and ',' in value:
+                    # 提取逗号后面的故障描述（1=故障状态）
+                    fault_desc = value.split(',')[1].strip()
+                    if fault_desc and fault_desc != '保留':
+                        # 根据bit位计算对应的十六进制值
+                        bit_num = int(key.replace('bit', ''))
+                        hex_code = 1 << bit_num
+                        fault_map[hex_code] = fault_desc
+            
+            # 解析故障码
+            descriptions = []
+            for code, desc in fault_map.items():
+                if fault_code & code:
+                    descriptions.append(desc)
+            
+            return '、'.join(descriptions) if descriptions else '无故障'
+            
+        except (ValueError, TypeError) as e:
+            logger.error(f"解析故障码失败: {fault_bits}, 错误: {e}")
+            return f'故障码解析错误: {fault_bits}'
 
     def _update_data_table(self, data_points):
         """更新数据表格"""
@@ -882,25 +1046,29 @@ class FaultRecordPage:
             if not self.data_table:
                 return
             
+            # 记录实际数据点数量
+            # actual_count = len(data_points)
+            # logger.info(f"收到 {actual_count} 个数据点用于更新表格")
+            
             # 确保在主UI上下文中更新UI
             if self.main_container is not None:
                 with self.main_container:
                     rows = []
                     for i, point in enumerate(data_points):
                         row = {
-                            'index': i,
-                            'system_status': point.get('system_status', '0x0000'),
-                            'switch_input': point.get('switch_input', '0x0000'),
-                            'switch_output': point.get('switch_output', '0x0000'),
-                            'sv1': f"{point.get('rail_potential_max', 0)} V",
-                            'sv2': f"{point.get('max_polarization', 0)} mV",
-                            'sa1': f"{point.get('branch_currents', [0])[0]} A",
-                            'sa2': f"{point.get('branch_voltages', [0])[0]} V",
-                        }
+                        'index': i,
+                        'system_status': point.get('system_status', '0x0000'),
+                        # 移除switch_input和switch_output，后端4寄存器格式不包含这些数据
+                        'sv1': f"{point.get('channel3_sv1', 0)} V",      # SV1: 通道3轨地电压
+                        'sa1': f"{point.get('channel1_sa1', 0)} A",      # SA1: 通道1轨地电流
+                        'sa2': f"{point.get('channel2_sa2', 0)} A",      # SA2: 通道2轨地电流
+                    }
                         rows.append(row)
                     
+                    # logger.info(f"生成表格行数: {len(rows)}")
                     self.data_table.rows = rows
                     self.data_table.update()
+                    logger.info(f"表格更新完成，显示 {len(self.data_table.rows)} 行")
             else:
                 # 如果没有主容器，直接更新UI
                 rows = []
@@ -908,16 +1076,16 @@ class FaultRecordPage:
                     row = {
                         'index': i,
                         'system_status': point.get('system_status', '0x0000'),
-                        'switch_input': point.get('switch_input', '0x0000'),
-                        'switch_output': point.get('switch_output', '0x0000'),
-                        'sv1': f"{point.get('rail_potential_max', 0)} V",
-                        'sv2': f"{point.get('max_polarization', 0)} mV",
-                        'sa1': f"{point.get('branch_currents', [0])[0]} A",
-                        'sa2': f"{point.get('branch_voltages', [0])[0]} V",
+                        # 移除switch_input和switch_output，后端4寄存器格式不包含这些数据
+                        'sv1': f"{point.get('channel3_sv1', 0)} V",      # SV1: 通道3轨地电压
+                        'sa1': f"{point.get('channel1_sa1', 0)} A",      # SA1: 通道1轨地电流
+                        'sa2': f"{point.get('channel2_sa2', 0)} A",      # SA2: 通道2轨地电流
                     }
                     rows.append(row)
                 
+                # logger.info(f"生成表格行数: {len(rows)}")
                 self.data_table.rows = rows
                 self.data_table.update()
+                logger.info(f"表格更新完成，显示 {len(self.data_table.rows)} 行")
         except Exception as e:
             logger.error(f"更新数据表格失败: {e}")

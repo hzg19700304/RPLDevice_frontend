@@ -17,6 +17,27 @@ class ConfigManager:
         self.config = configparser.ConfigParser()
         self._config_data = {}
         
+    def load_config_sync(self) -> None:
+        """同步加载配置文件"""
+        try:
+            if not self.config_file.exists():
+                raise FileNotFoundError(f"配置文件不存在: {self.config_file}")
+            
+            # 保持键的原始大小写
+            self.config.optionxform = str
+            
+            # 读取配置文件，指定编码为utf-8
+            self.config.read(self.config_file, encoding='utf-8')
+            
+            # 将配置转换为字典格式便于使用
+            self._parse_config()
+            
+            logger.info(f"配置文件加载成功: {self.config_file}")
+            
+        except Exception as e:
+            logger.error(f"配置文件加载失败: {e}")
+            raise
+        
     async def load_config(self) -> None:
         """加载配置文件"""
         try:
@@ -119,6 +140,10 @@ class ConfigManager:
     
     def get_fault_bits(self) -> Dict[str, str]:
         """获取故障位配置"""
+        return self.get_section("HMI故障点表")
+    
+    def get_fault_code_mapping(self) -> Dict[str, str]:
+        """获取故障码映射配置"""
         return self.get_section("HMI故障点表")
     
     def get_alarm_bits(self) -> Dict[str, str]:

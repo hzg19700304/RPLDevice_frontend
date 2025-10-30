@@ -6,6 +6,7 @@ Main Diagram Page
 import logging
 from datetime import datetime
 from nicegui import ui
+from svg_display_utils import create_svg_display  # 导入SVG显示工具函数
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +106,13 @@ class MainDiagramPage:
             svg_path = '一次回路图.svg'
             
             # logger.info(f"加载SVG文件: {svg_path}")
-            
-            # 使用SVG图片
+            # 使用版本兼容的SVG显示函数
             with open(svg_path, 'r', encoding='utf-8') as f:
                 svg_html = f.read()
             wrapped_svg = f'<div class="svg-container">{svg_html}</div>'
-            self.diagram_image = ui.html(wrapped_svg, sanitize=False).classes('w-full')
+            
+            # 使用兼容性函数创建SVG显示，自动处理不同NiceGUI版本的sanitize参数要求
+            self.diagram_image = create_svg_display(wrapped_svg, 'w-full')
             
             # 添加基本样式
             ui.add_head_html('''
@@ -317,18 +319,22 @@ class MainDiagramPage:
             # logger.info(f"主接线图页面收到系统状态数据: {data}")
             
             if isinstance(data, dict):
-                # 从system_status数据中提取开关量输出信息
-                switch_output = data.get('switch_output', {})
+                # 从system_status数据中提取KM1状态信息
+                # 根据配置文件，KM1状态在开关量输入点表(地址=0x0002)的bit0中定义
+                switch_input = data.get('switch_input', {})
                 
-                # logger.info(f"开关量输出: {switch_output}")
+                # logger.info(f"开关量输入: {switch_input}")
                 
-                if 'bit0' in switch_output:
-                    km1_value = switch_output['bit0']
-                    state_text = '合位' if km1_value == 1 else '分位'
+                if 'bit0' in switch_input:
+                    km1_value = switch_input['bit0']
+                    # 根据配置文件，bit0: 0=短接接触器分位(KM1分闸), 1=短接接触器合位(KM1合闸)
+                    state_text = '合位' if km1_value == 1 else '分位'  # 1表示合位，0表示分位
                     # logger.info(f"KM1状态更新: bit0={km1_value} -> {state_text}")
                     self.queue_svg_update('km1', state_text, True)
                 else:
-                    logger.warning("开关量输出中未找到bit0 (KM1)")
+                    # 没有KM1状态数据时，设置为默认状态"分位"
+                    # logger.debug("开关量输入中未找到bit0 (KM1)，使用默认状态")
+                    self.queue_svg_update('km1', '分位', True)
             else:
                 logger.warning(f"系统状态数据格式不正确，期望字典，实际: {type(data)}")
         except Exception as e:
