@@ -72,8 +72,8 @@ class UIComponents:
                     ('show_real_time_curve', '实时曲线', 'show_chart'),
                     ('show_history_curve', '历史曲线', 'timeline'),
                     ('show_parameter_settings', '参数设置', 'settings'),
-                    ('show_api_status', 'API状态', 'cloud'),
                     ('show_fault_record', '故障录波', 'bug_report'),
+                    ('show_api_status', 'API状态', 'cloud'),
                     ('show_range_settings', '量程设置', 'tune'),
                     ('show_channel_calibration', '通道校正', 'build')
                 ]
@@ -249,8 +249,6 @@ class UIComponents:
             'websocket': 'link_off'
         }
         return icon_map.get(connection_type, 'cancel')
-
-
     
     def _update_time(self) -> None:
         """更新时间显示"""
@@ -346,7 +344,6 @@ class VirtualKeyboardManager:
     def unregister_keyboard(self):
         """注销虚拟键盘实例"""
         self._current_keyboard = None
-
 
 class VirtualKeyboard:
     """虚拟数字键盘组件"""

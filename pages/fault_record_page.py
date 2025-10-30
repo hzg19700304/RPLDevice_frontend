@@ -247,6 +247,11 @@ class FaultRecordPage:
             ui.notify('正在读取中，请稍候...', type='warning')
             return
         
+        # 🔥🔥🔥 新增检查：先判断记录可读数是否为0
+        if self.available_records == 0:
+            ui.notify('设备中没有故障录波记录，无法查询详情', type='negative')
+            return
+        
         record_id = self.record_select.value
         
         self.is_reading = True
@@ -322,19 +327,23 @@ class FaultRecordPage:
         """清除故障录波记录"""
         logger.info("清除故障录波记录")
         
-        # 发送控制命令
-        message = {
-            'type': 'control_cmd',
+        # 生成请求ID
+        import uuid
+        request_id = str(uuid.uuid4())
+        
+        # 发送控制命令 - 只发送数据部分，不包含type字段
+        message_data = {
             'cmd': 'fault_record_clear',
+            'request_id': request_id,
             'cmd_param': {
                 'coil_addr': '0x0110',
                 'confirm': True
             }
         }
         
-        await self.websocket_client.send_message(message['type'], message)
+        await self.websocket_client.send_message('control_cmd', message_data)
         dialog.close()
-        ui.notify('正在清除故障录波记录...', type='info')
+        # ui.notify('正在清除故障录波记录...', type='info')
 
     def _show_progress_dialog(self):
         """显示进度对话框"""
@@ -368,7 +377,6 @@ class FaultRecordPage:
                 for bit_num in range(16):
                     if bit_num in bit_mapping:
                         is_set = (int_value >> bit_num) & 1
-                        icon = '🔴' if is_set else '🟢'
                         status_text = bit_mapping[bit_num]
                         # 如果状态文本包含逗号，取右边部分（1状态）
                         if ',' in status_text:
@@ -376,6 +384,13 @@ class FaultRecordPage:
                             display_status = status_parts[1]
                         else:
                             display_status = status_text
+                        
+                        # 判断是否为保留位，保留位显示灰色圆点
+                        if '保留' in display_status:
+                            icon = '⚪'  # 灰色圆点，颜色更深一点
+                        else:
+                            icon = '🔴' if is_set else '🟢'
+                        
                         ui.label(f'bit{bit_num}: {icon} {display_status}').classes('text-body2')
             
             ui.button('关闭', on_click=dialog.close).props('flat').classes('w-full')

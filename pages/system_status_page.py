@@ -203,6 +203,48 @@ class SystemStatusPage:
                 inset 0 -2px 4px rgba(0,0,0,0.2),
                 inset 0 2px 4px rgba(255,255,255,0.5) !important;
         }}
+        
+        /* === 图标样式 === */
+        .status-icon {{
+            font-size: 16px !important;
+            line-height: 1 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.3s ease !important;
+            flex-shrink: 0 !important;
+            cursor: default !important;
+        }}
+        
+        .status-icon.status-positive {{
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)) !important;
+        }}
+        
+        .status-icon.status-negative {{
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)) !important;
+            animation: pulse-icon 2s ease-in-out infinite !important;
+        }}
+        
+        .status-icon.status-grey {{
+            opacity: 0.7 !important;
+            filter: grayscale(0.3) !important;
+        }}
+        
+        .status-icon:hover {{
+            transform: scale(1.2) !important;
+        }}
+        
+        /* 图标脉冲动画 */
+        @keyframes pulse-icon {{
+            0%, 100% {{
+                filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)) !important;
+                transform: scale(1) !important;
+            }}
+            50% {{
+                filter: drop-shadow(0 2px 4px rgba(255,0,0,0.4)) !important;
+                transform: scale(1.1) !important;
+            }}
+        }}
         </style>
         ''')
         
@@ -428,13 +470,13 @@ class SystemStatusPage:
             zero_text = bit_config.get('zero_text', '保留')
             one_text = bit_config.get('one_text', '保留')
             
-            # 如果是保留位，显示灰色渐变圆点
+            # 如果是保留位，显示灰色图标
             if zero_text == '保留' and one_text == '保留':
-                status_icon = ui.icon('circle').classes('status-dot dot-grey')
+                status_icon = ui.label('⚪').classes('status-icon status-grey')
                 status_text = ui.label(f'Bit{bit_num}: 保留').classes('text-grey-6 responsive-text status-text')
             else:
-                # 默认显示0状态（绿色渐变圆点）
-                status_icon = ui.icon('circle').classes('status-dot dot-positive')
+                # 默认显示0状态（绿色图标）
+                status_icon = ui.label('🟢').classes('status-icon status-positive')
                 status_text = ui.label(f'Bit{bit_num}: {zero_text}').classes('text-positive responsive-text status-text')
             
             # 存储引用以便后续更新，使用组名和bit位作为唯一标识
@@ -466,18 +508,21 @@ class SystemStatusPage:
         
         # 如果是保留位，始终显示灰色
         if zero_text == '保留' and one_text == '保留':
-            status_icon.classes('status-dot dot-grey', remove='dot-positive dot-negative')
+            status_icon.set_text('⚪')
+            status_icon.classes('status-icon status-grey', remove='status-positive status-negative')
             status_text.set_text(f'Bit{bit_num}: 保留')
             status_text.classes('text-grey-6 responsive-text status-text', remove='text-positive text-negative')
         else:
             if bit_value == 1:
-                # 状态位为1：红色渐变圆点（带脉冲动画）
-                status_icon.classes('status-dot dot-negative', remove='dot-positive dot-grey')
+                # 状态位为1：红色图标
+                status_icon.set_text('🔴')
+                status_icon.classes('status-icon status-negative', remove='status-positive status-grey')
                 status_text.set_text(f'Bit{bit_num}: {one_text}')
                 status_text.classes('text-negative responsive-text status-text', remove='text-positive text-grey-6')
             else:
-                # 状态位为0：绿色渐变圆点
-                status_icon.classes('status-dot dot-positive', remove='dot-negative dot-grey')
+                # 状态位为0：绿色图标
+                status_icon.set_text('🟢')
+                status_icon.classes('status-icon status-positive', remove='status-negative status-grey')
                 status_text.set_text(f'Bit{bit_num}: {zero_text}')
                 status_text.classes('text-positive responsive-text status-text', remove='text-negative text-grey-6')
     
