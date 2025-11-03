@@ -5,6 +5,7 @@ Configuration Manager Module
 # flake8: noqa
 import configparser
 import logging
+import socket
 from pathlib import Path
 from typing import Dict, Any
 
@@ -192,7 +193,8 @@ class ConfigManager:
             'show_api_status': 'API状态',
             'show_fault_record': '故障录波',
             'show_range_settings': '量程设置',
-            'show_channel_calibration': '通道校正'
+            'show_channel_calibration': '通道校正',
+            'show_user_management': '用户管理'
         }
         
         enabled_pages = {}
@@ -219,3 +221,30 @@ class ConfigManager:
         self._config_data.clear()
         self.load_config()
         logger.info("配置文件已重新加载")
+    
+    def get_local_ip(self) -> str:
+        """获取本机IP地址"""
+        try:
+            # 创建一个UDP套接字连接到公共DNS服务器
+            # 这不会发送实际数据，只是获取本机IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # 连接到Google的DNS服务器（不实际发送数据）
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception as e:
+            logger.warning(f"获取本机IP地址失败: {e}")
+            # 如果获取失败，返回回环地址
+            return "127.0.0.1"
+    
+    def get_device_ip(self) -> str:
+        """获取设备IP地址，优先使用配置文件中的值，如果配置文件中的值为空或不存在，则自动获取本机IP"""
+        config_ip = self.get("设备配置", "设备IP", "")
+        if config_ip and config_ip.strip():
+            return config_ip
+        
+        # 如果配置文件中没有设置IP，则自动获取本机IP
+        local_ip = self.get_local_ip()
+        logger.info(f"自动获取本机IP地址: {local_ip}")
+        return local_ip

@@ -131,7 +131,7 @@ class HistoryCurvePage:
                 ui.label('').classes('text-sm text-grey-6')  # 占位，保持布局
             
             # 图表容器（占据剩余空间）
-            self.chart_container = ui.card().classes('w-full p-3').props('flat bordered').style('background: white; height: 550px; flex-shrink: 0;')
+            self.chart_container = ui.card().classes('w-full p-3').props('flat bordered').style('background: white; min-height: 500px; flex-shrink: 0;')
             self._create_empty_chart()
             
             # 数据表格（可折叠）
@@ -143,13 +143,13 @@ class HistoryCurvePage:
         self.chart_container.clear()
         
         with self.chart_container:
-            self.chart = ui.plotly({}).classes('w-full h-full')
+            self.chart = ui.plotly({}).classes('w-full').style('height: 450px; min-height: 450px;')
             
             # 初始化空图表配置 - 简洁风格
             empty_figure = {
                 'data': [],
                 'layout': {
-                    'title': {'text': '历史数据曲线', 'font': {'size': 16, 'color': '#424242'}},
+                    'title': {'text': '历史数据曲线 - 请选择参数并查询数据', 'font': {'size': 16, 'color': '#424242'}},
                     'xaxis': {
                         'title': '时间',
                         'gridcolor': '#e0e0e0',
@@ -176,7 +176,8 @@ class HistoryCurvePage:
                     'plot_bgcolor': 'white',
                     'paper_bgcolor': 'white',
                     'margin': {'l': 60, 'r': 30, 't': 50, 'b': 80},
-                    'autosize': True
+                    'autosize': True,
+                    'height': 450
                 }
             }
             
@@ -435,6 +436,7 @@ class HistoryCurvePage:
         """更新图表"""
         try:
             if not self.historical_data or not self.time_labels:
+                logger.warning("没有数据可更新图表")
                 return
             
             # 构建数据集
@@ -442,61 +444,114 @@ class HistoryCurvePage:
             for param_name in self.selected_parameters:
                 if param_name in self.historical_data:
                     param_info = next(p for p in self.available_parameters if p['name'] == param_name)
-                    data = self.historical_data[param_name]
+                    raw_data = self.historical_data[param_name]
                     
-                    trace = {
-                        'x': self.time_labels,
-                        'y': data,
-                        'type': 'scatter',
-                        'mode': 'lines+markers',
-                        'name': f"{param_name} ({param_info['unit']})",
-                        'line': {'color': param_info['color'], 'width': 2},
-                        'marker': {'color': param_info['color'], 'size': 4},
-                        'hovertemplate': f'{param_name}: %{{y:.2f}} {param_info["unit"]}<br>时间: %{{x}}<extra></extra>'
-                    }
+                    # 过滤掉None值，创建有效的数据点
+                    valid_times = []
+                    valid_values = []
                     
-                    data_traces.append(trace)
+                    for i, value in enumerate(raw_data):
+                        if value is not None and i < len(self.time_labels):
+                            valid_times.append(self.time_labels[i])
+                            valid_values.append(float(value))
+                    
+                    logger.info(f"参数 {param_name}: 原始数据点 {len(raw_data)}, 有效数据点 {len(valid_values)}")
+                    
+                    # 只有当有有效数据时才创建trace
+                    if valid_values:
+                        trace = {
+                            'x': valid_times,
+                            'y': valid_values,
+                            'type': 'scatter',
+                            'mode': 'lines+markers',
+                            'name': f"{param_name} ({param_info['unit']})",
+                            'line': {'color': param_info['color'], 'width': 2},
+                            'marker': {'color': param_info['color'], 'size': 4},
+                            'hovertemplate': f'<b>{param_name}</b><br>数值: <b>%{{y:.3f}} {param_info["unit"]}</b><br>时间: %{{x}}<extra></extra>',
+                            'connectgaps': False  # 不连接缺失数据的间隙
+                        }
+                        
+                        data_traces.append(trace)
+                        logger.info(f"为参数 {param_name} 创建了trace，包含 {len(valid_values)} 个数据点")
+                    else:
+                        logger.warning(f"参数 {param_name} 没有有效数据点")
             
-            # 创建Plotly图表配置 - 简洁风格
+            if not data_traces:
+                logger.warning("没有有效的数据trace可显示")
+                # 显示空图表
+                empty_figure = {
+                    'data': [],
+                    'layout': {
+                        'title': {'text': '历史数据曲线 - 暂无数据', 'font': {'size': 16, 'color': '#424242'}},
+                        'xaxis': {'title': '时间'},
+                        'yaxis': {'title': '数值'},
+                        'plot_bgcolor': 'white',
+                        'paper_bgcolor': 'white',
+                        'margin': {'l': 60, 'r': 30, 't': 50, 'b': 80}
+                    }
+                }
+                self.chart.update_figure(empty_figure)
+                return
+            
+            # 创建Plotly图表配置
             figure = {
                 'data': data_traces,
                 'layout': {
-                    'title': {'text': '历史数据曲线', 'font': {'size': 16, 'color': '#424242'}},
+                    'title': {'text': '历史数据曲线', 'font': {'size': 12, 'color': '#424242'}},
+                    'font': {'size': 8, 'family': 'Arial, sans-serif'},  # 全局字体设置
                     'xaxis': {
-                        'title': '时间',
+                        'title': {'text': '时间', 'font': {'size': 9}},  # 轴标题字体
                         'tickangle': -45,
                         'tickmode': 'auto',
-                        'nticks': 10,
+                        'nticks': 15,  # 增加刻度数量
                         'gridcolor': '#e0e0e0',
                         'showline': True,
-                        'linecolor': '#e0e0e0'
+                        'linecolor': '#e0e0e0',
+                        'type': 'category',  # 使用category类型处理时间字符串
+                        'tickfont': {'size': 6, 'family': 'Arial, sans-serif'},  # 刻度字体
+                        'automargin': True  # 自动调整边距
                     },
                     'yaxis': {
-                        'title': '数值',
+                        'title': {'text': '数值', 'font': {'size': 9}},  # 轴标题字体
                         'gridcolor': '#e0e0e0',
                         'showline': True,
-                        'linecolor': '#e0e0e0'
+                        'linecolor': '#e0e0e0',
+                        'tickfont': {'size': 6, 'family': 'Arial, sans-serif'},  # 刻度字体
+                        'automargin': True  # 自动调整边距
                     },
-                    'hovermode': 'x unified',
+                    'hovermode': 'closest',  # 改为closest模式，避免重叠
+                    'hoverlabel': {
+                        'bgcolor': 'rgba(255,255,255,0.95)',
+                        'bordercolor': '#333',
+                        'font': {'size': 12, 'color': '#333', 'family': 'Arial, sans-serif'},
+                        'align': 'left'
+                    },
                     'showlegend': True,
                     'legend': {
-                        'orientation': 'h',
-                        'y': -0.15,
-                        'x': 0.5,
-                        'xanchor': 'center',
-                        'bgcolor': 'rgba(255,255,255,0.8)',
+                        'orientation': 'v',  # 改为垂直布局
+                        'y': 1,  # 顶部位置
+                        'x': 1.02,  # 右侧位置
+                        'xanchor': 'left',
+                        'yanchor': 'top',
+                        'bgcolor': 'rgba(255,255,255,0.9)',
                         'bordercolor': '#e0e0e0',
-                        'borderwidth': 1
+                        'borderwidth': 1,
+                        'font': {'size': 6}  # 图例字体大小
                     },
                     'plot_bgcolor': 'white',
                     'paper_bgcolor': 'white',
-                    'margin': {'l': 60, 'r': 30, 't': 50, 'b': 80}
+                    'margin': {'l': 60, 'r': 120, 't': 50, 'b': 100},  # 增加右边距和底边距
+                    'autosize': True,
+                    'height': 450  # 明确设置图表高度
                 }
             }
             
             # 更新图表
             self.chart.update_figure(figure)
             logger.info(f"Plotly图表更新完成: {len(data_traces)} 个数据trace")
+            
+            # 强制刷新图表
+            await asyncio.sleep(0.1)
             
         except Exception as e:
             logger.error(f"更新图表失败: {e}", exc_info=True)

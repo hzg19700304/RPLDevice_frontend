@@ -35,7 +35,7 @@ class EventRecordPage:
     def create_page(self) -> ui.column:
         """创建事件记录页面"""
         with ui.card().classes('w-full').style('height: 80vh; overflow-y: auto;'):
-            ui.label('历史记录查询').classes('text-h5 q-mb-md')
+            ui.label('事件记录查询').classes('text-h5 q-mb-md')
             
             # 查询条件区域
             with ui.row().classes('w-full q-gutter-md q-mb-md items-end'):

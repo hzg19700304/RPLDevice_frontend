@@ -239,7 +239,7 @@ class WebSocketClient:
                 "type": "device_register",
                 "device_id": device_config.get('设备ID', 'HYP_RPLD_001'),
                 "device_name": device_config.get('设备名称', '红岩坪站钢轨电位限制装置'),
-                "device_ip": device_config.get('设备IP', '192.168.0.11'),
+                "device_ip": self.config.get_device_ip(),  # 使用新的get_device_ip方法
                 "system_version": device_config.get('系统版本', '1.0.0'),
                 "timestamp": datetime.now().isoformat()
             }

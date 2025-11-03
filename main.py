@@ -13,6 +13,8 @@ from config_manager import ConfigManager
 from websocket_client import WebSocketClient
 from ui_components import UIComponents
 from pages.page_manager import PageManager
+from pages.login_page import LoginPage
+from api_client import init_api_client
 
 
 # 配置日志
@@ -30,6 +32,8 @@ class RPLDeviceHMI:
         self.websocket_client = None
         self.page_manager = None
         self.ui_components = None
+        self.login_page = None
+        self.current_user = None
         
     async def initialize(self):
         """初始化应用"""
@@ -37,6 +41,13 @@ class RPLDeviceHMI:
             # 加载配置
             await self.config.load_config()
             # logger.info("配置加载完成")
+            
+            # 初始化API客户端
+            api_base_url = self.config.get('API配置', 'base_url', 'http://localhost:8000')
+            await init_api_client(api_base_url)
+            
+            # 初始化登录页面
+            self.login_page = LoginPage(self.config, self._on_login_success)
             
             # 初始化WebSocket客户端
             self.websocket_client = WebSocketClient(self.config)
@@ -50,8 +61,7 @@ class RPLDeviceHMI:
             # 设置UI主题和样式
             self._setup_ui_theme()
             
-            # 创建主界面
-            self._create_main_layout()
+            # 不再在这里创建登录界面，由页面路由函数根据登录状态决定
 
             # ⭐ 注册 WebSocket 连接状态回调
             self.websocket_client.register_connection_callback(
@@ -207,8 +217,20 @@ class RPLDeviceHMI:
         </style>
         ''')
     
+    def _create_login_page(self):
+        """创建登录页面"""
+        self.login_page.create_login_page()
+
     def _create_main_layout(self):
         """创建主界面布局"""
+        # 设置页面管理器的当前用户和登出回调
+        self.page_manager.current_user = self.current_user
+        self.page_manager.set_logout_callback(self._on_logout)
+        
+        # 设置UI组件的当前用户和登出回调
+        self.ui_components.current_user = self.current_user
+        self.ui_components.set_logout_callback(self._on_logout)
+        
         # 创建顶部栏
         self.ui_components.create_header()
         
@@ -220,6 +242,55 @@ class RPLDeviceHMI:
         
         # 创建底部状态栏
         self.ui_components.create_footer()
+    
+    def _on_login_success(self, user_info: dict):
+        """登录成功回调"""
+        try:
+            self.current_user = user_info
+            logger.info(f"用户登录成功 - 用户名: {user_info['username']}, 角色: {user_info['role']}")
+            
+            # 使用更安全的页面切换方式
+            try:
+                # 使用正确的导航语法
+                ui.navigate.to('/main')
+            except Exception as nav_error:
+                logger.warning(f"页面导航失败，尝试直接创建界面: {nav_error}")
+                # 清空当前页面内容
+                ui.context.client.content.clear()
+                # 创建主界面
+                self._create_main_layout()
+            
+            # 启动WebSocket连接
+            ui.timer(0.5, self.start_websocket, once=True)
+            
+            # 显示欢迎消息
+            ui.notify(f'欢迎 {user_info["display_name"]} 登录系统！', type='positive')
+            
+        except Exception as e:
+            logger.error(f"登录成功处理失败: {e}")
+            ui.notify('登录后初始化失败，请刷新页面重试', type='negative')
+    
+    def _on_logout(self) -> None:
+        """登出回调"""
+        try:
+            logger.info(f"用户登出: {self.current_user['username'] if self.current_user else '未知用户'}")
+            
+            # 停止WebSocket连接
+            if self.websocket_client:
+                asyncio.create_task(self.websocket_client.disconnect())
+            
+            # 清除用户信息
+            self.current_user = None
+            
+            # 导航到登录页面
+            ui.navigate.to('/')
+            
+            # 显示登出成功消息
+            ui.notify('您已成功登出系统', type='info')
+            
+        except Exception as e:
+            logger.error(f"登出处理失败: {e}")
+            ui.notify(f'登出失败: {str(e)}', type='negative')
 
     async def _on_websocket_connection_changed(self, connected: bool):
         """WebSocket 连接状态变化回调"""
@@ -302,8 +373,31 @@ async def index():
     """主页面"""
     await hmi_app.initialize()
     
+    # 检查是否已经登录
+    if hmi_app.current_user:
+        # 已登录，显示主界面
+        hmi_app._create_main_layout()
+        # 确保WebSocket连接在页面加载完成后建立
+        ui.timer(1.0, hmi_app.start_websocket, once=True)
+        # 显示欢迎消息
+        ui.notify(f'欢迎 {hmi_app.current_user["display_name"]} 登录系统！', type='positive')
+    else:
+        # 未登录，显示登录页面
+        hmi_app._create_login_page()
+
+@ui.page('/main')
+async def main_page():
+    """主界面页面"""
+    if not hmi_app.current_user:
+        ui.navigate.to('/')
+        return
+    
+    # 创建主界面
+    hmi_app._create_main_layout()
     # 确保WebSocket连接在页面加载完成后建立
     ui.timer(1.0, hmi_app.start_websocket, once=True)
+    # 显示欢迎消息
+    ui.notify(f'欢迎 {hmi_app.current_user["display_name"]} 登录系统！', type='positive')
 
 if __name__ in {"__main__", "__mp_main__"}:
     # 配置NiceUI应用

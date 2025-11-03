@@ -26,6 +26,8 @@ class PageManager:
         self.current_page = None
         self.pages = {}
         self.main_content_area = None
+        self.current_user = None  # 添加当前用户信息
+        self.logout_callback = None  # 添加登出回调
         
         # 初始化各个页面实例
         self.main_diagram_page = MainDiagramPage(config_manager, websocket_client)
@@ -35,7 +37,13 @@ class PageManager:
         self.real_time_curve_page = RealTimeCurvePage(config_manager, websocket_client)
         self.history_curve_page = HistoryCurvePage(config_manager, websocket_client)
         self.fault_record_page = FaultRecordPage(config_manager, websocket_client)
-        
+        # 用户管理页面在需要时动态创建
+        self.user_management_page = None
+
+    def set_logout_callback(self, callback) -> None:
+        """设置登出回调函数"""
+        self.logout_callback = callback
+
     def setup_pages(self) -> None:
         """设置页面"""
         enabled_pages = self.config.get_enabled_pages()
@@ -103,13 +111,34 @@ class PageManager:
                 self._create_placeholder_page("量程设置")
             elif page_key == 'show_channel_calibration':
                 self._create_placeholder_page("通道校正")
+            elif page_key == 'show_user_management':
+                self._create_user_management_page()
             else:
                 self._create_placeholder_page("未知页面")
 
         self.current_page = page_key
         page_name = enabled_pages.get(page_key, page_key)
-        ui.notify(f'已切换到: {page_name}', type='positive')
-    
+        # ui.notify(f'已切换到: {page_name}', type='positive')
+        
+    def _create_user_management_page(self) -> None:
+        """创建用户管理页面"""
+        try:
+            from pages.user_management_page import UserManagementPage
+            
+            # 创建用户管理页面实例
+            user_page = UserManagementPage(self.config, self)
+            
+            # 设置登出回调
+            if self.logout_callback:
+                user_page.set_logout_callback(self.logout_callback)
+            
+            # 显示用户管理页面
+            user_page.show()
+            
+        except Exception as e:
+            logger.error(f"创建用户管理页面失败: {e}")
+            ui.notify(f'显示用户管理失败: {str(e)}', type='negative')
+
     def cleanup(self):
         """清理页面资源"""
         if hasattr(self, 'real_time_curve_page'):

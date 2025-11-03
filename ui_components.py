@@ -24,6 +24,9 @@ class UIComponents:
         self.header_status_icon = None
         self.footer_status_labels = {}
         self.footer_status_icons = {}
+        self.current_user = None  # 添加当前用户信息
+        self.system_settings_dialog = None  # 添加系统设置对话框实例
+        self.logout_callback = None  # 添加登出回调函数
         
     def create_header(self) -> None:
         """创建顶部栏"""
@@ -40,20 +43,13 @@ class UIComponents:
                 # 创建定时器，每秒更新一次时间
                 self.time_timer = ui.timer(1.0, self._update_time)
                 
-                ui.space()
+                # ui.space()
                 
                 # 连接状态指示器
-                with ui.row().classes('items-center'):
-                    self.header_status_icon = ui.icon('wifi_off', color='red').classes('text-h5')
-                    ui.label('未连接').classes('text-body1 q-ml-xs')
-                
-                # 设置菜单
-                with ui.button(icon='settings').classes('touch-friendly'):
-                    with ui.menu():
-                        ui.menu_item('系统设置', lambda: self._show_system_settings())
-                        ui.menu_item('用户管理', lambda: self._show_user_management())
-                        ui.separator()
-                        ui.menu_item('关于系统', lambda: self._show_about())
+                # with ui.row().classes('items-center'):
+                #     # self.header_status_icon = ui.icon('wifi_off', color='red').classes('text-h5')
+                #     # ui.label('未连接').classes('text-body1 q-ml-xs')
+                #     ui.icon('account_circle', size='lg').style('color: #667eea;')
     
     def create_left_drawer(self) -> None:
         """创建左侧导航栏"""
@@ -75,7 +71,8 @@ class UIComponents:
                     ('show_fault_record', '故障录波', 'bug_report'),
                     ('show_api_status', 'API状态', 'cloud'),
                     ('show_range_settings', '量程设置', 'tune'),
-                    ('show_channel_calibration', '通道校正', 'build')
+                    ('show_channel_calibration', '通道校正', 'build'),
+                    ('show_user_management', '用户管理', 'manage_accounts')
                 ]
                 
                 for page_key, page_name, icon in menu_items:
@@ -111,6 +108,7 @@ class UIComponents:
     
     def _handle_menu_click(self, page_key: str) -> None:
         """处理菜单点击事件"""
+            
         if self.page_manager:
             self.page_manager.switch_page(page_key)
         else:
@@ -250,6 +248,10 @@ class UIComponents:
         }
         return icon_map.get(connection_type, 'cancel')
     
+    def set_logout_callback(self, callback) -> None:
+        """设置登出回调函数"""
+        self.logout_callback = callback
+    
     def _update_time(self) -> None:
         """更新时间显示"""
         if self.header_time_label and hasattr(self.header_time_label, 'text'):
@@ -262,50 +264,99 @@ class UIComponents:
     
     def _show_system_settings(self) -> None:
         """显示系统设置对话框"""
-        with ui.dialog() as dialog, ui.card():
-            ui.label('系统设置').classes('text-h6')
-            ui.separator()
+        logger.info("显示系统设置对话框被调用")
+        try:
+            # 创建对话框并立即打开
+            dialog = ui.dialog()
             
-            with ui.column().classes('q-pa-md'):
-                ui.label('功能开发中...')
+            with dialog, ui.card():
+                ui.label('系统设置').classes('text-h6')
+                ui.separator()
                 
-                with ui.row().classes('q-mt-md'):
-                    ui.button('关闭', on_click=dialog.close).classes('touch-friendly')
-        
-        dialog.open()
+                with ui.column().classes('q-pa-md'):
+                    # 用户管理区域
+                    with ui.card().classes('q-pa-md full-width'):
+                        ui.label('用户管理').classes('text-subtitle1 text-bold q-mb-sm')
+                        
+                        # 当前登录用户信息
+                        if hasattr(self, 'current_user') and self.current_user:
+                            ui.label(f'当前用户: {self.current_user.get("username", "未知")}').classes('q-mb-sm')
+                            ui.label(f'用户角色: {self.current_user.get("role", "未知")}').classes('q-mb-sm')
+                        else:
+                            ui.label('当前用户: 未登录').classes('q-mb-sm')
+                        
+                        # 登出按钮
+                        with ui.row().classes('q-gutter-sm'):
+                            ui.button('登出', 
+                                    on_click=lambda: self._handle_logout(dialog),
+                                    color='negative').classes('touch-friendly')
+                            ui.button('关闭', on_click=dialog.close).classes('touch-friendly')
+                    
+                    # 系统信息区域
+                    with ui.card().classes('q-pa-md full-width q-mt-md'):
+                        ui.label('系统信息').classes('text-subtitle1 text-bold q-mb-sm')
+                        device_info = self.config.get_device_info()
+                        ui.label(f'设备名称: {device_info.get("设备名称", "N/A")}')
+                        ui.label(f'设备ID: {device_info.get("设备ID", "N/A")}')
+                        ui.label(f'系统版本: {device_info.get("系统版本", "N/A")}')
+                        ui.label(f'设备IP: {self.config.get_device_ip()}')  # 使用新的get_device_ip方法
+            
+            logger.info("正在打开系统设置对话框")
+            dialog.open()
+            logger.info("系统设置对话框已打开")
+        except Exception as e:
+            logger.error(f"显示系统设置对话框失败: {e}")
+            ui.notify(f'显示系统设置失败: {str(e)}', type='negative')
+    
+    def _handle_logout(self, dialog) -> None:
+        """处理登出操作"""
+        try:
+            # 关闭对话框
+            dialog.close()
+            
+            # 调用登出回调
+            if self.logout_callback:
+                self.logout_callback()
+            else:
+                # 如果没有定义回调，显示提示信息
+                ui.notify('登出功能需要主应用支持', type='warning')
+                
+        except Exception as e:
+            logger.error(f"登出操作失败: {e}")
+            ui.notify(f'登出失败: {str(e)}', type='negative')
     
     def _show_user_management(self) -> None:
-        """显示用户管理对话框"""
-        with ui.dialog() as dialog, ui.card():
-            ui.label('用户管理').classes('text-h6')
-            ui.separator()
-            
-            with ui.column().classes('q-pa-md'):
-                ui.label('功能开发中...')
-                
-                with ui.row().classes('q-mt-md'):
-                    ui.button('关闭', on_click=dialog.close).classes('touch-friendly')
-        
-        dialog.open()
+        """显示用户管理页面（已弃用 - 现在通过页面管理器处理）"""
+        logger.warning("_show_user_management 方法已弃用，应该通过页面管理器处理")
+        # 转发到页面管理器
+        if self.page_manager:
+            self.page_manager.switch_page('show_user_management')
     
     def _show_about(self) -> None:
         """显示关于系统对话框"""
-        device_info = self.config.get_device_info()
-        
-        with ui.dialog() as dialog, ui.card():
-            ui.label('关于系统').classes('text-h6')
-            ui.separator()
+        logger.info("显示关于系统对话框被调用")
+        try:
+            device_info = self.config.get_device_info()
             
-            with ui.column().classes('q-pa-md'):
-                ui.label(f"设备名称: {device_info.get('设备名称', 'N/A')}")
-                ui.label(f"设备ID: {device_info.get('设备ID', 'N/A')}")
-                ui.label(f"系统版本: {device_info.get('系统版本', 'N/A')}")
-                ui.label(f"设备IP: {device_info.get('设备IP', 'N/A')}")
+            with ui.dialog() as dialog, ui.card():
+                ui.label('关于系统').classes('text-h6')
+                ui.separator()
                 
-                with ui.row().classes('q-mt-md'):
-                    ui.button('关闭', on_click=dialog.close).classes('touch-friendly')
-        
-        dialog.open()
+                with ui.column().classes('q-pa-md'):
+                    ui.label(f"设备名称: {device_info.get('设备名称', 'N/A')}")
+                    ui.label(f"设备ID: {device_info.get('设备ID', 'N/A')}")
+                    ui.label(f"系统版本: {device_info.get('系统版本', 'N/A')}")
+                    ui.label(f"设备IP: {self.config.get_device_ip()}")  # 使用新的get_device_ip方法
+                    
+                    with ui.row().classes('q-mt-md'):
+                        ui.button('关闭', on_click=dialog.close).classes('touch-friendly')
+            
+            logger.info("正在打开关于系统对话框")
+            dialog.open()
+            logger.info("关于系统对话框已打开")
+        except Exception as e:
+            logger.error(f"显示关于系统对话框失败: {e}")
+            ui.notify(f'显示关于系统失败: {str(e)}', type='negative')
 
 class VirtualKeyboardManager:
     """虚拟键盘管理器 - 防止重复弹出"""
